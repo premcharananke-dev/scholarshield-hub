@@ -14,16 +14,436 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      application_documents: {
+        Row: {
+          application_id: string
+          created_at: string
+          document_name: string
+          id: string
+          provided: boolean
+          verified: boolean
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          document_name: string
+          id?: string
+          provided?: boolean
+          verified?: boolean
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          document_name?: string
+          id?: string
+          provided?: boolean
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_documents_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_history: {
+        Row: {
+          application_id: string
+          created_at: string
+          id: string
+          note: string
+          status: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          id?: string
+          note?: string
+          status: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          id?: string
+          note?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_history_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      applications: {
+        Row: {
+          academic_percentage: number
+          academic_year: string
+          attendance: number
+          category: string
+          college: string
+          course: string
+          course_stream: string | null
+          department: string | null
+          eligible: boolean
+          email: string
+          family_income: number
+          fingerprint: string
+          full_name: string
+          gender: string | null
+          id: string
+          is_demo: boolean
+          is_duplicate: boolean
+          phone: string
+          rules: Json
+          scholarship_id: string | null
+          scholarship_name: string
+          status: string
+          status_note: string | null
+          student_id: string
+          study_level: string | null
+          submitted_at: string
+          updated_at: string
+          user_id: string | null
+          year_of_study: number | null
+        }
+        Insert: {
+          academic_percentage: number
+          academic_year: string
+          attendance: number
+          category: string
+          college: string
+          course: string
+          course_stream?: string | null
+          department?: string | null
+          eligible?: boolean
+          email: string
+          family_income: number
+          fingerprint: string
+          full_name: string
+          gender?: string | null
+          id?: string
+          is_demo?: boolean
+          is_duplicate?: boolean
+          phone: string
+          rules?: Json
+          scholarship_id?: string | null
+          scholarship_name: string
+          status?: string
+          status_note?: string | null
+          student_id: string
+          study_level?: string | null
+          submitted_at?: string
+          updated_at?: string
+          user_id?: string | null
+          year_of_study?: number | null
+        }
+        Update: {
+          academic_percentage?: number
+          academic_year?: string
+          attendance?: number
+          category?: string
+          college?: string
+          course?: string
+          course_stream?: string | null
+          department?: string | null
+          eligible?: boolean
+          email?: string
+          family_income?: number
+          fingerprint?: string
+          full_name?: string
+          gender?: string | null
+          id?: string
+          is_demo?: boolean
+          is_duplicate?: boolean
+          phone?: string
+          rules?: Json
+          scholarship_id?: string | null
+          scholarship_name?: string
+          status?: string
+          status_note?: string | null
+          student_id?: string
+          study_level?: string | null
+          submitted_at?: string
+          updated_at?: string
+          user_id?: string | null
+          year_of_study?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_scholarship_id_fkey"
+            columns: ["scholarship_id"]
+            isOneToOne: false
+            referencedRelation: "scholarships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      disbursements: {
+        Row: {
+          amount: number
+          application_id: string
+          created_at: string
+          id: string
+          payment_date: string | null
+          payment_reference: string | null
+          recorded_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          application_id: string
+          created_at?: string
+          id?: string
+          payment_date?: string | null
+          payment_reference?: string | null
+          recorded_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          application_id?: string
+          created_at?: string
+          id?: string
+          payment_date?: string | null
+          payment_reference?: string | null
+          recorded_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disbursements_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          academic_percentage: number | null
+          category: string | null
+          college: string | null
+          course: string | null
+          course_stream: string | null
+          created_at: string
+          department: string | null
+          email: string
+          family_income: number | null
+          full_name: string
+          gender: string | null
+          id: string
+          phone: string | null
+          student_id: string | null
+          study_level: string | null
+          updated_at: string
+          use_gender_for_matching: boolean
+          year_of_study: number | null
+        }
+        Insert: {
+          academic_percentage?: number | null
+          category?: string | null
+          college?: string | null
+          course?: string | null
+          course_stream?: string | null
+          created_at?: string
+          department?: string | null
+          email?: string
+          family_income?: number | null
+          full_name?: string
+          gender?: string | null
+          id: string
+          phone?: string | null
+          student_id?: string | null
+          study_level?: string | null
+          updated_at?: string
+          use_gender_for_matching?: boolean
+          year_of_study?: number | null
+        }
+        Update: {
+          academic_percentage?: number | null
+          category?: string | null
+          college?: string | null
+          course?: string | null
+          course_stream?: string | null
+          created_at?: string
+          department?: string | null
+          email?: string
+          family_income?: number | null
+          full_name?: string
+          gender?: string | null
+          id?: string
+          phone?: string | null
+          student_id?: string | null
+          study_level?: string | null
+          updated_at?: string
+          use_gender_for_matching?: boolean
+          year_of_study?: number | null
+        }
+        Relationships: []
+      }
+      saved_scholarships: {
+        Row: {
+          created_at: string
+          scholarship_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          scholarship_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          scholarship_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_scholarships_scholarship_id_fkey"
+            columns: ["scholarship_id"]
+            isOneToOne: false
+            referencedRelation: "scholarships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scholarships: {
+        Row: {
+          academic_year: string | null
+          amount: string
+          application_url: string | null
+          benefits: string | null
+          closing_date: string | null
+          course_streams: string[]
+          created_at: string
+          description: string
+          documents: string[]
+          eligible_categories: string[]
+          eligible_gender: string
+          eligible_years: number[]
+          id: string
+          is_active: boolean
+          max_income: number | null
+          min_percentage: number | null
+          name: string
+          opening_date: string | null
+          other_conditions: string[]
+          percentage_basis: string | null
+          provider: string
+          provider_type: string
+          source_url: string | null
+          study_levels: string[]
+          tags: string[]
+          unverified_fields: string[]
+          updated_at: string
+          verification_note: string | null
+        }
+        Insert: {
+          academic_year?: string | null
+          amount?: string
+          application_url?: string | null
+          benefits?: string | null
+          closing_date?: string | null
+          course_streams?: string[]
+          created_at?: string
+          description?: string
+          documents?: string[]
+          eligible_categories?: string[]
+          eligible_gender?: string
+          eligible_years?: number[]
+          id: string
+          is_active?: boolean
+          max_income?: number | null
+          min_percentage?: number | null
+          name: string
+          opening_date?: string | null
+          other_conditions?: string[]
+          percentage_basis?: string | null
+          provider: string
+          provider_type?: string
+          source_url?: string | null
+          study_levels?: string[]
+          tags?: string[]
+          unverified_fields?: string[]
+          updated_at?: string
+          verification_note?: string | null
+        }
+        Update: {
+          academic_year?: string | null
+          amount?: string
+          application_url?: string | null
+          benefits?: string | null
+          closing_date?: string | null
+          course_streams?: string[]
+          created_at?: string
+          description?: string
+          documents?: string[]
+          eligible_categories?: string[]
+          eligible_gender?: string
+          eligible_years?: number[]
+          id?: string
+          is_active?: boolean
+          max_income?: number | null
+          min_percentage?: number | null
+          name?: string
+          opening_date?: string | null
+          other_conditions?: string[]
+          percentage_basis?: string | null
+          provider?: string
+          provider_type?: string
+          source_url?: string | null
+          study_levels?: string[]
+          tags?: string[]
+          unverified_fields?: string[]
+          updated_at?: string
+          verification_note?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "student"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +570,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "student"],
+    },
   },
 } as const
