@@ -55,7 +55,7 @@ function ScholarshipEditor({ initial, isNew, existingIds, back, saved }: { initi
     if (text.income && (isNaN(+text.income) || +text.income < 0)) err["income"] = "Enter a valid amount";
     if (text.pct && (isNaN(+text.pct) || +text.pct < 0 || +text.pct > 100)) err["pct"] = "Enter 0–100";
     if (s.opening_date && s.closing_date && s.closing_date < s.opening_date) err["closing"] = "Closing date must be after opening date";
-    setErrors(err); if (Object.keys(err).length) return toast.error("Please fix the highlighted fields");
+    setErrors(err); if (Object.keys(err).length) { toast.error("Please fix the highlighted fields"); return; }
     setBusy(true);
     try {
       const unverified = s.unverified_fields.filter((f) => !((f === "opening_date" && s.opening_date) || (f === "closing_date" && s.closing_date)));
