@@ -1,69 +1,72 @@
 # ScholarShield
 
 ## Project Description
-ScholarShield is a responsive scholarship eligibility and disbursement system built as an academic prototype. It gives students a clear path from application to payment and gives administrators a focused review workspace.
+ScholarShield is a responsive Scholarship Discovery, Eligibility Verification, Application Management and Disbursement Tracking platform built as an academic project. Students discover scholarships (including a dedicated **Women Empowerment Scholarships** section), check eligibility against their profile, apply, and track review and payment. Administrators manage the scholarship catalogue, review applications and record disbursements.
 
 ## Problem Statement
-Scholarship processes can be difficult to follow, repetitive applications can be hard to identify, and students often lack a transparent view of review and disbursement progress.
+Students often do not know which scholarships exist or whether they qualify, especially schemes designed for girls' higher education. Application progress and payment status are also hard to follow.
 
 ## Proposed Solution
-ScholarShield centralizes student applications, runs a transparent first-pass eligibility check, detects potential duplicates, supports administrator decisions, and presents a dated status timeline.
+A single portal that matches each student's profile against structured scholarship criteria, explains every result, and connects discovery to an application workflow with a dated, database-backed timeline.
 
 ## Features
-- Student and administrator sign-in, plus student sign-up
-- Stored student profiles and prefilled application details
-- Validated scholarship application form
-- Rule-by-rule eligibility evaluation
-- Browser-safe duplicate fingerprinting
-- Application history, details, and tracking
-- Administrator search, filters, review, approval, rejection, and disbursement
-- Responsive mobile bottom navigation and desktop sidebar
-- Persistent prototype data and derived dashboard totals
+- Student/admin sign-in, student sign-up with optional private gender field and matching consent
+- Scholarship discovery: search, filters (Government, Private, Merit-Based, Need-Based, Category-Based, Women-Specific, Saved), details, documents, dates, official links
+- Women Empowerment Scholarships highlighted on a female student's dashboard; women-only schemes are not shown as opportunities to male students
+- Recommendation engine with three results: Eligible, Not Eligible, Additional Information Required — with reasons per condition
+- Save scholarships for later
+- Application form prefilled from the profile, document checklist, SHA-256 duplicate detection
+- Statuses: Submitted, Eligibility Verified, Not Eligible, Under Review, Approved, Rejected, Disbursement Pending, Disbursed
+- Disbursed only after a payment reference is recorded (enforced in the database)
+- Admin: dashboard statistics, application search/filters, review, document verification, scholarship add/edit/deactivate/delete
 
 ## Technology Stack
-- React 19 and TypeScript
-- TanStack Start and TanStack Router
-- Tailwind CSS 4
-- Lucide icons
-- Browser localStorage through a typed data service
-- Web Crypto SHA-256
+React 19, TypeScript, TanStack Start/Router, Tailwind CSS 4, Lucide icons, Lovable Cloud (PostgreSQL with row-level security, authentication), Web Crypto SHA-256.
 
 ## System Workflow
-`Apply → Duplicate Check → Eligibility Evaluation → Admin Review → Approve/Reject → Disburse`
+`Discover → View Details → Eligibility Check → Apply → Review → Approve/Reject → Disbursement Pending → Disbursed`
 
-## Eligibility Rules
-The prototype checks each condition independently:
-1. Annual family income is at most ₹2,50,000
-2. Category is SC, ST, or OBC
-3. Academic percentage is at least 60%
-4. Attendance is at least 75%
+## Database
+| Table | Purpose |
+| --- | --- |
+| `profiles` | Student details used for matching (gender visible only to the student and admins) |
+| `user_roles` | Admin/student roles (separate table to prevent privilege escalation) |
+| `scholarships` | Catalogue; eligibility rules are stored as structured columns (gender, levels, streams, years, income, marks, categories) |
+| `applications` | Submitted applications with stored rule results and fingerprint |
+| `application_history` | Dated status timeline, written automatically by database triggers |
+| `application_documents` | Per-application document checklist and admin verification |
+| `saved_scholarships` | Student bookmarks |
+| `disbursements` | Payment records; completing one is the only way an application becomes Disbursed |
+
+## Eligibility Matching
+All rules live in `src/lib/eligibility.ts`. Each recorded condition is checked separately; any failed condition gives **Not Eligible**, any missing profile detail gives **Additional Information Required**, otherwise **Eligible**. Conditions that cannot be checked from a profile (e.g. "government school") are listed for the student to confirm. Eligibility is never an approval or a payment.
+
+## Scholarship Data
+Nine scholarships were checked against official provider pages (AICTE, Kotak Education Foundation, L'Oréal India, Santoor/Wipro, Ministry of Education NSP, Department of Social Justice, Ministry of Tribal Affairs, Reliance Foundation). Details that could not be confirmed (most 2026-27 deadlines, some amounts) are marked **Unverified** in the app.
 
 ## Project Structure
-- `src/routes/index.tsx` — complete application experience and workflow
-- `src/styles.css` — semantic design tokens and global presentation
-- `src/routes/__root.tsx` — application shell and document metadata
-- `public/` — static files
+- `src/routes/index.tsx` — app shell, auth, student and admin screens
+- `src/components/scholarships.tsx` — discovery, cards, details, women section
+- `src/components/admin-scholarships.tsx` — scholarship management
+- `src/components/ui-kit.tsx` — shared UI pieces
+- `src/lib/eligibility.ts` — matching rules
+- `src/lib/data.ts` — data service
+- `src/lib/demo-accounts.functions.ts` — creates the demo accounts on first use
+- `drizzle/migrations/` — database schema
 
 ## How to Run Locally
 ```bash
 bun install
 bun run dev
 ```
-Open the local URL printed by the development server.
 
 ## Demo Login Credentials
 - Student: `student@scholarshield.com`
 - Admin: `admin@scholarshield.com`
-- Password for both: `scholar123`
-
-Use the demo role buttons on the sign-in screen to fill these details automatically.
+- Password: `scholar123`
 
 ## Future Enhancements
-- Connect institutional identity verification
-- Integrate document verification
-- Add configurable scholarship rule sets
-- Integrate an approved banking disbursement service
-- Add audit exports for institutions
+Document uploads, deadline reminders, state-specific scholarships, institutional identity verification, bank payment integration.
 
-## Academic Prototype Disclaimer
-ScholarShield is an academic prototype. The eligibility thresholds used in this application are demonstration rules and may not represent the requirements of any specific government or institutional scholarship.
+## Disclaimer
+ScholarShield is an academic project. Always confirm scholarship details on the official website before applying. Eligibility results are indicative only.

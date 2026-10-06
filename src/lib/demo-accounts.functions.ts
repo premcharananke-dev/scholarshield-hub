@@ -19,7 +19,7 @@ export const ensureDemoAccounts = createServerFn({ method: "POST" }).handler(asy
     const { data, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email, password: DEMO_PASSWORD, email_confirm: true,
     });
-    if (createError || !data.user) throw new Error("Could not create demo account");
+    if (createError || !data.user) { console.error("demo account", createError?.message); throw new Error("Could not create demo account"); }
     return data.user.id;
   }
 
