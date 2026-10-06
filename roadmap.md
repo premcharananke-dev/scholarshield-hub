@@ -1,11 +1,10 @@
 # ScholarShield roadmap
 
-- [x] Design system and responsive shell
-- [x] Student/admin authentication demo and sign-up
-- [x] Student profile and application form
-- [x] Eligibility evaluation and duplicate detection
-- [x] Application list, details, and tracking
-- [x] Admin dashboard, search, filters, and review actions
-- [x] Persistent data service and derived statistics
-- [x] About/disclaimer and repository documentation
-- [x] Final browser verification
+- [x] Original prototype (auth, apply, eligibility, tracking, admin review)
+- [x] Move data to Lovable Cloud database with roles and access rules
+- [x] Scholarship discovery (search, filters, details, save, official links)
+- [x] Women Empowerment Scholarships section
+- [x] Recommendation with Eligible / Not Eligible / Info Required
+- [x] Admin scholarship management
+- [x] Application → review → disbursement integration with payment records
+- [x] Testing with separate student profiles and admin flows
