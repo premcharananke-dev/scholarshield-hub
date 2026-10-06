@@ -97,7 +97,7 @@ function ScholarShield() {
     else if (view === "applications") content = <ApplicationsList apps={mine} openApp={openApp} />;
     else if ((view === "details" || view === "result") && selectedApp) content = <ApplicationDetails app={selectedApp} resultOnly={view === "result"} back={() => go("applications")} />;
     else if (view === "profile") content = <ProfilePage profile={profile} apps={mine} scholarships={scholarships} saved={saved} openApp={openApp} openSch={openSch} logout={logout} onSaved={reload} />;
-    else content = <StudentHome profile={profile} apps={mine} go={go} openApp={openApp} {...common} />;
+    else content = <StudentHome apps={mine} go={go} openApp={openApp} {...common} />;
   }
   return <AppShell role={role} profile={profile} view={view} go={go} logout={logout}>{content}</AppShell>;
 }
