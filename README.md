@@ -51,7 +51,7 @@ Nine scholarships were checked against official provider pages (AICTE, Kotak Edu
 - `src/components/ui-kit.tsx` — shared UI pieces
 - `src/lib/eligibility.ts` — matching rules
 - `src/lib/data.ts` — data service
-- `src/lib/demo-accounts.functions.ts` — creates the demo accounts on first use
+- Demo accounts are existing Lovable Cloud Auth users; sign-in uses their stored credentials and roles.
 - `drizzle/migrations/` — database schema
 
 ## How to Run Locally

@@ -8,3 +8,5 @@
 - [x] Admin scholarship management
 - [x] Application → review → disbursement integration with payment records
 - [x] Testing with separate student profiles and admin flows
+- [x] Remove public sign-in's privileged demo-account initialization; preserve existing users and role assignments
+- [ ] Verify admin sign-in and dashboard — blocked because the stored admin password rejects the documented demo password; owner authorization is needed before resetting it.
