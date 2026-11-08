@@ -8,3 +8,4 @@
 - [x] Admin scholarship management
 - [x] Application → review → disbursement integration with payment records
 - [x] Testing with separate student profiles and admin flows
+- [ ] Remove the demo sign-in dependency on unavailable privileged credentials; verify existing student and admin accounts

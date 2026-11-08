@@ -8,7 +8,6 @@ import {
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureDemoAccounts } from "@/lib/demo-accounts.functions";
 import * as api from "@/lib/data";
 import { formatMoney, isVisibleTo, matchScholarship, sha256 } from "@/lib/eligibility";
 import { CATEGORIES, GENDERS, STREAMS, STUDY_LEVELS, type Application, type Disbursement, type MatchProfile, type Profile, type Role, type Scholarship, type Status } from "@/lib/types";
@@ -116,7 +115,6 @@ function AuthScreen({ onAbout }: { onAbout: () => void }) {
     e.preventDefault(); setError(""); setBusy(true);
     try {
       if (tab === "signin") {
-        if (DEMO_EMAILS.includes(email.trim().toLowerCase())) await ensureDemoAccounts();
         const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (err) setError(err.message === "Invalid login credentials" ? "Incorrect email or password." : err.message);
         return;
