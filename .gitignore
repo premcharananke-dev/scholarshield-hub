@@ -1,0 +1,19 @@
+# Environment variables and secrets
+.env
+.env.*
+*.env
+*.env.local
+.env.production
+.env.development
+
+# Dependencies & Build artifacts
+node_modules/
+.output/
+.vercel/
+.wrangler/
+.nitro/
+dist/
+dist-ssr/
+
+# Logs
+*.log
