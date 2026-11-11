@@ -219,6 +219,8 @@ function shouldIgnoreWatchEvent(relPath) {
   if (segments.some((seg) => IGNORED_DIR_SEGMENTS.has(seg))) return true;
 
   if (
+    normalized === '.' ||
+    normalized === '.auto-sync' ||
     normalized === '.auto-sync/sync.log' ||
     normalized === '.auto-sync/sync.log.old' ||
     normalized === '.auto-sync/sync.pid' ||
@@ -226,6 +228,14 @@ function shouldIgnoreWatchEvent(relPath) {
     normalized === '.auto-sync/sync-status.json'
   ) {
     return true;
+  }
+
+  try {
+    if (fs.statSync(path.join(REPO_ROOT, normalized)).isDirectory()) {
+      return true;
+    }
+  } catch {
+    // Deleted path or transient event: continue file-level filtering
   }
 
   if (isForbiddenFilePath(normalized)) return true;
