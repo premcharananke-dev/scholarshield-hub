@@ -2,7 +2,7 @@
 import { ArrowLeft, Check, Filter, Pencil, Plus, Power, Search, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { deleteScholarship, saveScholarship, setScholarshipActive } from "@/lib/data";
+import { deleteScholarship, saveScholarship, setScholarshipActive, syncMasterScholarshipsToDb } from "@/lib/data";
 import {
   CATEGORIES,
   SCHEME_CATEGORIES,
@@ -55,6 +55,7 @@ export function AdminScholarships({
   reload: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState<{ s: Scholarship; isNew: boolean } | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [q, setQ] = useState("");
   const [sectorFilter, setSectorFilter] = useState<string>("All");
   const [stateFilter, setStateFilter] = useState<string>("All");
@@ -164,6 +165,24 @@ export function AdminScholarships({
   const needsVerificationCount = scholarships.filter(
     (s) => computeVerificationStatus(s) === "Needs Verification"
   ).length;
+  const unsyncedCount = scholarships.filter((s) => s.in_database === false).length;
+
+  async function syncCatalog() {
+    setSyncing(true);
+    try {
+      const { inserted, totalInDb } = await syncMasterScholarshipsToDb();
+      toast.success(
+        inserted > 0
+          ? `Synced ${inserted} missing scholarships to Supabase (${totalInDb} total in DB).`
+          : "All master catalog scholarships are already synced in Supabase."
+      );
+      await reload();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   return (
     <div className="animate-rise space-y-5">
@@ -171,12 +190,31 @@ export function AdminScholarships({
         title="Manage Scholarships"
         subtitle={`Total directory: ${scholarships.length} scholarships (${scholarships.length - needsVerificationCount} verified, ${needsVerificationCount} need verification).`}
         action={
-          <Button onClick={() => setEditing({ s: blank(nextId), isNew: true })}>
-            <Plus size={17} />
-            Add Scholarship
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {unsyncedCount > 0 && (
+              <Button variant="outline" disabled={syncing} onClick={syncCatalog}>
+                {syncing ? "Syncing…" : `Sync ${unsyncedCount} Missing to DB`}
+              </Button>
+            )}
+            <Button onClick={() => setEditing({ s: blank(nextId), isNew: true })}>
+              <Plus size={17} />
+              Add Scholarship
+            </Button>
+          </div>
         }
       />
+
+      {unsyncedCount > 0 && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-warning/40 bg-warning-soft/40 p-4">
+          <div className="text-xs text-foreground">
+            <b>{unsyncedCount} catalog schemes</b> are not yet stored in Supabase{" "}
+            <code className="font-mono">public.scholarships</code>. Sync them to enable direct in-portal student applications.
+          </div>
+          <Button variant="secondary" disabled={syncing} onClick={syncCatalog} className="h-9 px-3 text-xs">
+            {syncing ? "Syncing…" : "Sync Catalog to Database"}
+          </Button>
+        </Card>
+      )}
 
       {/* Admin Multi-Filter Toolbar */}
       <Card className="p-4 space-y-3">
@@ -287,6 +325,11 @@ export function AdminScholarships({
                   >
                     {s.is_active ? "ACTIVE" : "INACTIVE"}
                   </span>
+                  {s.in_database === false && (
+                    <span className="rounded-full bg-warning-soft text-warning px-2 py-0.5 text-[10px] font-extrabold">
+                      CATALOG ONLY
+                    </span>
+                  )}
                   {s.scheme_category && (
                     <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-bold">
                       {s.scheme_category}

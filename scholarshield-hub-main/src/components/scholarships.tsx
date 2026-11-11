@@ -25,13 +25,14 @@ import { useMemo, useState } from "react";
 import {
   isVisibleTo,
   matchScholarship,
+  normalizeCourseStreams,
   effectiveGender,
   getStudentState,
   categorizeScholarships,
   getAlternativeRecommendations,
   type Match,
 } from "@/lib/eligibility";
-import type { MatchProfile, Scholarship, ScholarshipCategory } from "@/lib/types";
+import type { MatchProfile, Scholarship, ScholarshipCategory, STREAMS } from "@/lib/types";
 import {
   ALL_INDIAN_STATES_AND_UTS,
   computeApplicationStatus,
@@ -228,7 +229,7 @@ export function ScholarshipCard({
         <Button variant="outline" onClick={() => setShowCheck(!showCheck)}>
           {showCheck ? "Hide Check" : "Check Eligibility"}
         </Button>
-        {onApply && !isClosed(s) && s.is_active && !alreadyApplied ? (
+        {onApply && s.in_database !== false && !isClosed(s) && s.is_active && !alreadyApplied ? (
           <Button onClick={onApply} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold">
             Apply Now
             <ArrowRight size={16} />
@@ -373,7 +374,14 @@ export function ScholarshipsPage(props: ListProps) {
 
       // Stream filter
       if (streamFilter !== "All") {
-        if (s.course_streams.length > 0 && !s.course_streams.includes(streamFilter)) return false;
+        if (
+          s.course_streams.length > 0 &&
+          !s.course_streams.some((cs) =>
+            normalizeCourseStreams(null, cs).includes(streamFilter as (typeof STREAMS)[number])
+          )
+        ) {
+          return false;
+        }
       }
 
       // Category filter
@@ -938,11 +946,21 @@ export function ScholarshipDetails({
             <Button
               className="w-full font-bold"
               onClick={onApply}
-              disabled={closed || !s.is_active || alreadyApplied}
+              disabled={closed || !s.is_active || alreadyApplied || s.in_database === false}
             >
-              {alreadyApplied ? "Already Applied in ScholarShield" : "Apply & Track in ScholarShield"}
+              {alreadyApplied
+                ? "Already Applied in ScholarShield"
+                : s.in_database === false
+                  ? "Official Portal Application Only"
+                  : "Apply & Track in ScholarShield"}
               <ArrowRight size={16} />
             </Button>
+
+            {s.in_database === false && (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                This catalog reference scheme has not been synced to the portal database yet. Use the Official Application Portal below to apply directly.
+              </p>
+            )}
 
             {s.application_url && (
               <a

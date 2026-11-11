@@ -22,11 +22,16 @@ export function Field({ label, value, onChange, type = "text", placeholder, erro
     {error && <span className="mt-1 block text-xs font-medium text-danger">{error}</span>}</label>;
 }
 
-type SelectProps = { label?: string; value: string; onChange: (v: string) => void; options: readonly string[]; error?: string | undefined; ariaLabel?: string | undefined; required?: boolean; placeholder?: string };
+type SelectOption = string | { value: string; label: string };
+type SelectProps = { label?: string; value: string; onChange: (v: string) => void; options: readonly SelectOption[]; error?: string | undefined; ariaLabel?: string | undefined; required?: boolean; placeholder?: string };
 export function SelectField({ label, value, onChange, options, error, ariaLabel, required, placeholder = "Select an option" }: SelectProps) {
   return <label className="block text-sm font-bold">{label}
     <select aria-label={ariaLabel || label} required={required ?? !!label} value={value} onChange={(e) => onChange(e.target.value)} className={`${label ? "mt-2" : ""} h-11 w-full rounded-lg border bg-background px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-ring ${error ? "border-danger" : ""}`}>
-      {label && <option value="">{placeholder}</option>}{options.map((o) => <option key={o}>{o}</option>)}
+      {label && <option value="">{placeholder}</option>}{options.map((o) => {
+        const optValue = typeof o === "string" ? o : o.value;
+        const optLabel = typeof o === "string" ? o : o.label;
+        return <option key={optValue} value={optValue}>{optLabel}</option>;
+      })}
     </select>{error && <span className="mt-1 block text-xs font-medium text-danger">{error}</span>}</label>;
 }
 

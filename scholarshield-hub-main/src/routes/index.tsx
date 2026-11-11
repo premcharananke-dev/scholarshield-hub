@@ -616,7 +616,7 @@ function AppShell({ role, profile, view, go, logout, children }: { role: Role; p
 /* ---------------- Student ---------------- */
 function missingProfileFields(p: Profile) {
   const m: string[] = [];
-  if (!p.course_stream) m.push("course stream"); if (!p.study_level) m.push("study level"); if (!p.year_of_study) m.push("year of study");
+  if (!p.course_stream && !p.course) m.push("course / branch"); if (!p.study_level) m.push("study level"); if (!p.year_of_study) m.push("year of study");
   if (p.academic_percentage == null) m.push("academic percentage"); if (p.family_income == null) m.push("family income"); if (!p.category) m.push("category");
   return m;
 }
@@ -835,8 +835,11 @@ function ApplicationForm({
   onDone: (id: string) => Promise<void>;
 }) {
   const open = scholarships.filter(
-    (s) => s.is_active && !isClosed(s) && isVisibleTo(s, profile)
+    (s) => s.in_database !== false && s.is_active && !isClosed(s) && isVisibleTo(s, profile)
   );
+  const unsyncedRequested = initialScholarship
+    ? scholarships.find((s) => s.id === initialScholarship && s.in_database === false)
+    : undefined;
 
   // Prefill first name & last name from existing profile.full_name
   const [initFirst, ...restLast] = (profile.full_name || "").trim().split(/\s+/);
@@ -919,10 +922,13 @@ function ApplicationForm({
   const matchInput: MatchProfile = {
     gender: form.gender || null,
     use_gender_for_matching: true,
+    course: resolvedDegree || null,
     course_stream: resolvedBranch || null,
+    college: form.college.trim() || null,
     study_level: form.level || null,
     year_of_study: form.year ? Number(form.year) : null,
     academic_percentage: form.academic === "" ? null : Number(form.academic),
+    attendance: form.attendance === "" ? null : Number(form.attendance),
     family_income: form.income === "" ? null : Number(form.income),
     category: form.category || null,
   };
@@ -1045,14 +1051,41 @@ function ApplicationForm({
       />
       <form onSubmit={submit} className="space-y-5" noValidate>
         <FormSection title="Scholarship" icon={<Award size={19} />}>
+          {unsyncedRequested && !sch && (
+            <div className="mb-4 rounded-lg border border-warning bg-warning-soft/50 p-3.5 text-xs text-foreground">
+              <p className="font-bold">
+                {unsyncedRequested.name} ({unsyncedRequested.id}) is a catalog reference scheme not yet synced to the portal database.
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Select a database-enabled scholarship below for in-portal tracking
+                {unsyncedRequested.application_url ? (
+                  <>
+                    , or{" "}
+                    <a
+                      href={unsyncedRequested.application_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-primary underline"
+                    >
+                      apply directly on the official portal
+                    </a>
+                    .
+                  </>
+                ) : (
+                  "."
+                )}
+              </p>
+            </div>
+          )}
           <SelectField
             label="Scholarship"
-            value={sch?.name ?? ""}
+            value={sch?.id ?? ""}
             onChange={(v) => {
-              set("scholarshipId", open.find((s) => s.name === v)?.id ?? "");
+              set("scholarshipId", v);
+              clearFieldError("scholarship");
               setDocs({});
             }}
-            options={open.map((s) => s.name)}
+            options={open.map((s) => ({ value: s.id, label: s.name }))}
             error={errors["scholarship"]}
             placeholder="Select a scholarship"
           />
@@ -1383,21 +1416,27 @@ function ApplicationDetails({
     ? {
         gender: profile.gender ?? app.gender ?? null,
         use_gender_for_matching: profile.use_gender_for_matching,
+        course: profile.course ?? app.course ?? null,
         course_stream: profile.course_stream ?? app.course_stream ?? null,
+        college: profile.college ?? app.college ?? null,
         study_level: profile.study_level ?? app.study_level ?? null,
         year_of_study: profile.year_of_study ?? app.year_of_study ?? null,
         academic_percentage:
           profile.academic_percentage ?? app.academic_percentage ?? null,
+        attendance: profile.attendance ?? app.attendance ?? null,
         family_income: profile.family_income ?? app.family_income ?? null,
         category: profile.category ?? app.category ?? null,
       }
     : {
         gender: app.gender ?? null,
         use_gender_for_matching: true,
+        course: app.course ?? null,
         course_stream: app.course_stream ?? null,
+        college: app.college ?? null,
         study_level: app.study_level ?? null,
         year_of_study: app.year_of_study ?? null,
         academic_percentage: app.academic_percentage ?? null,
+        attendance: app.attendance ?? null,
         family_income: app.family_income ?? null,
         category: app.category ?? null,
       };
@@ -1585,15 +1624,31 @@ function ApplicationDetails({
                       </div>
 
                       <div className="mt-5 pt-3 border-t">
-                        <Button
-                          onClick={() => {
-                            if (onApply) onApply(s.id);
-                          }}
-                          className="w-full font-bold shadow-sm"
-                        >
-                          Apply Now
-                          <ArrowRight size={16} />
-                        </Button>
+                        {s.in_database !== false ? (
+                          <Button
+                            onClick={() => {
+                              if (onApply) onApply(s.id);
+                            }}
+                            className="w-full font-bold shadow-sm"
+                          >
+                            Apply Now
+                            <ArrowRight size={16} />
+                          </Button>
+                        ) : s.application_url ? (
+                          <a
+                            href={s.application_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-sm font-bold text-secondary-foreground hover:opacity-90 transition"
+                          >
+                            Official Portal
+                            <ArrowRight size={16} />
+                          </a>
+                        ) : (
+                          <Button disabled variant="outline" className="w-full font-bold">
+                            Official Portal Only
+                          </Button>
+                        )}
                       </div>
                     </Card>
                   );

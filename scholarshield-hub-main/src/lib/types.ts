@@ -85,6 +85,7 @@ export type MatchProfile = Pick<
   | "family_income"
   | "category"
 > & {
+  course?: string | null;
   college?: string | null;
   state?: string | null;
   attendance?: number | null;
@@ -125,6 +126,8 @@ export type Scholarship = {
   application_status?: ApplicationStatus;
   verification_status?: VerificationStatus;
   last_verified_date?: string | null;
+  /** True when the record is confirmed in Supabase `public.scholarships`; false when catalog-only. */
+  in_database?: boolean;
   created_at?: string;
   updated_at?: string;
 };
