@@ -1,2 +1,0 @@
-Temporary end-to-end auto-sync verification test file. Safe to remove after verification.
-
