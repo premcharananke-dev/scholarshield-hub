@@ -17,3 +17,11 @@ dist-ssr/
 
 # Logs
 *.log
+*.log.old
+
+# Auto-sync runtime state (scripts stay tracked; logs/locks stay local)
+.auto-sync/*.pid
+.auto-sync/*.lock
+.auto-sync/*.tmp
+.auto-sync/sync-status.json
+
