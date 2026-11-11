@@ -70,3 +70,6 @@ Document uploads, deadline reminders, state-specific scholarships, institutional
 
 ## Disclaimer
 ScholarShield is an academic project. Always confirm scholarship details on the official website before applying. Eligibility results are indicative only.
+
+## Automatic Deployment
+Changes pushed to the `main` branch are built from `scholarshield-hub-main` and deployed automatically to Vercel.
