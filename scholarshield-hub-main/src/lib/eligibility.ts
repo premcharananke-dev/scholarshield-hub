@@ -383,16 +383,20 @@ export function matchScholarship(s: Scholarship, p: MatchProfile): Match {
     s.id === "SCH-022" ||
     s.other_conditions.some((c) => c.toLowerCase().includes("75%") && c.toLowerCase().includes("attendance"));
 
-  if (requiresAttendance && p.attendance != null) {
-    const ok = p.attendance >= 75;
-    checks.push({
-      label: "Attendance",
-      value: `${p.attendance}%`,
-      status: ok ? "pass" : "fail",
-      reason: ok
-        ? `Meets the minimum 75% attendance rule (${p.attendance}%)`
-        : `Requires minimum 75% attendance (Your attendance: ${p.attendance}%)`,
-    });
+  if (requiresAttendance) {
+    if (p.attendance == null) {
+      missing("Attendance", "current attendance percentage");
+    } else {
+      const ok = p.attendance >= 75;
+      checks.push({
+        label: "Attendance",
+        value: `${p.attendance}%`,
+        status: ok ? "pass" : "fail",
+        reason: ok
+          ? `Meets the minimum 75% attendance rule (${p.attendance}%)`
+          : `Requires minimum 75% attendance (Your attendance: ${p.attendance}%)`,
+      });
+    }
   }
 
   const verdict: Verdict = checks.some((c) => c.status === "fail")

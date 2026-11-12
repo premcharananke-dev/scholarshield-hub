@@ -47,8 +47,8 @@ console.log("--- 1. First Name & Last Name Compatibility ---");
 // 2. Degree & Branch Mapping to Database Fields
 console.log("\n--- 2. Degree & Branch Mapping ---");
 {
-  assert(DEGREE_OPTIONS.includes("B.Tech (Bachelor of Technology)" as any), "B.Tech exists in DEGREE_OPTIONS");
-  assert(BRANCH_OPTIONS.includes("Computer Science and Engineering (CSE)" as any), "CSE exists in BRANCH_OPTIONS");
+  assert((DEGREE_OPTIONS as readonly string[]).includes("B.Tech (Bachelor of Technology)"), "B.Tech exists in DEGREE_OPTIONS");
+  assert((BRANCH_OPTIONS as readonly string[]).includes("Computer Science and Engineering (CSE)"), "CSE exists in BRANCH_OPTIONS");
   assert(BRANCH_OPTIONS.length >= 35, `BRANCH_OPTIONS contains verified academic branch options (${BRANCH_OPTIONS.length} options)`);
 
   // Resolution of standard selection

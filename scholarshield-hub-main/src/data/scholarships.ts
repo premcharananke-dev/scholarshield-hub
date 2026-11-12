@@ -904,7 +904,7 @@ export const MASTER_SCHOLARSHIPS: Scholarship[] = [
     is_active: true,
     eligible_states: ["All India"],
     scheme_category: "Central Government",
-    application_status: "Open",
+    application_status: "Closed",
     verification_status: "Verified",
     last_verified_date: "2026-11-09"
   },

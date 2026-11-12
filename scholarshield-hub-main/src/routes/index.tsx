@@ -5,7 +5,7 @@ import {
   ArrowLeft, ArrowRight, Award, BadgeCheck, BookOpen, Check, ChevronRight, CircleDollarSign, Clock3, FileCheck2,
   FileText, GraduationCap, HelpCircle, Home, Info, LayoutDashboard, Lock, LogOut, ShieldCheck, UserRound, WalletCards, X, XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureDemoAccounts } from "@/lib/demo-accounts.functions";
@@ -51,25 +51,48 @@ function ScholarShield() {
   const [appId, setAppId] = useState<string>();
   const [schId, setSchId] = useState<string>();
   const [about, setAbout] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
 
   const load = useCallback(async (u: { id: string; email: string }) => {
     try {
+      setLoadError(null);
       const [r, p, a, s] = await Promise.all([api.getRole(u.id), api.getProfile(u.id), api.listApplications(), api.listScholarships()]);
       setRole(r); setProfile(p ?? emptyProfile(u.id, u.email)); setApps(a); setScholarships(s);
       setSaved(r === "student" ? await api.listSaved(u.id) : []);
-    } catch (e) { toast.error(`Could not load data: ${(e as Error).message}`); }
+    } catch (e) {
+      const msg = (e as Error).message || "Unable to load portal data.";
+      setLoadError(msg);
+      toast.error(`Could not load data: ${msg}`);
+    }
   }, []);
   const reload = useCallback(async () => { if (user) await load(user); }, [user, load]);
 
   useEffect(() => {
     const apply = async (session: { user: { id: string; email?: string | undefined } } | null) => {
-      if (session) { const u = { id: session.user.id, email: session.user.email ?? "" }; setUser(u); await load(u); }
-      else { setUser(null); setProfile(null); setApps([]); }
+      if (session) {
+        const u = { id: session.user.id, email: session.user.email ?? "" };
+        currentUserIdRef.current = u.id;
+        setUser(u);
+        await load(u);
+      } else {
+        currentUserIdRef.current = null;
+        setUser(null); setProfile(null); setApps([]); setSaved([]); setLoadError(null);
+      }
       setReady(true);
     };
     supabase.auth.getSession().then(({ data }) => apply(data.session));
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT") { setView("home"); void apply(session); }
+      if (event === "SIGNED_OUT") {
+        setView("home");
+        void apply(null);
+      } else if (event === "SIGNED_IN") {
+        const incomingId = session?.user?.id ?? null;
+        if (incomingId && incomingId !== currentUserIdRef.current) {
+          setView("home");
+          void apply(session);
+        }
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, [load]);
@@ -85,13 +108,27 @@ function ScholarShield() {
   }
 
   if (!ready) return <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">Loading ScholarShield…</div>;
-  if (!user || !profile) return about ? <AboutPage back={() => setAbout(false)} /> : <AuthScreen onAbout={() => setAbout(true)} />;
+  if (!user) return about ? <AboutPage back={() => setAbout(false)} /> : <AuthScreen onAbout={() => setAbout(true)} />;
+  if (!profile) {
+    return (
+      <main className="grid min-h-screen place-items-center px-4">
+        <Card className="w-full max-w-md p-6 text-center">
+          <h1 className="text-lg font-extrabold">Unable to load your ScholarShield data</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{loadError ?? "Connection failed. Please retry."}</p>
+          <div className="mt-5 flex justify-center gap-3">
+            <Button onClick={() => void reload()}>Retry</Button>
+            <Button variant="outline" onClick={() => void logout()}>Sign Out</Button>
+          </div>
+        </Card>
+      </main>
+    );
+  }
 
   const selectedApp = apps.find((a) => a.id === appId);
   const selectedSch = scholarships.find((s) => s.id === schId);
   let content: ReactNode;
   if (role === "admin") {
-    content = <AdminArea view={view} go={go} apps={apps} scholarships={scholarships} selected={selectedApp} openApp={openApp} logout={logout} reload={reload} adminId={user.id} />;
+    content = <AdminArea view={view} go={go} apps={apps} scholarships={scholarships} selected={selectedApp} openApp={openApp} logout={logout} reload={reload} adminId={user.id} adminEmail={user.email} />;
   } else {
     const mine = apps.filter((a) => a.user_id === user.id);
     const appliedIds = mine
@@ -100,7 +137,7 @@ function ScholarShield() {
     const applyToSch = (id: string) => { setSchId(id); go("apply"); };
     const common = { scholarships, profile, saved, onSave: toggleSave, onOpen: openSch, onApply: applyToSch, appliedIds };
     if (view === "scholarships") content = <ScholarshipsPage {...common} />;
-    else if (view === "scholarship" && selectedSch) content = <ScholarshipDetails s={selectedSch} profile={profile} saved={saved.includes(selectedSch.id)} onSave={() => toggleSave(selectedSch.id)} back={() => go("scholarships")} alreadyApplied={mine.some((a) => a.scholarship_id === selectedSch.id)} onApply={() => applyToSch(selectedSch.id)} />;
+    else if (view === "scholarship" && selectedSch) content = <ScholarshipDetails s={selectedSch} profile={profile} scholarships={scholarships} saved={saved.includes(selectedSch.id)} onSave={() => toggleSave(selectedSch.id)} back={() => go("scholarships")} alreadyApplied={mine.some((a) => a.scholarship_id === selectedSch.id)} onApply={() => applyToSch(selectedSch.id)} onSelectAlternative={openSch} />;
     else if (view === "apply") content = <ApplicationForm profile={profile} scholarships={scholarships} initialScholarship={schId} onDone={async (id) => { await reload(); openApp(id, "result"); }} />;
     else if (view === "applications") content = <ApplicationsList apps={mine} openApp={openApp} />;
     else if ((view === "details" || view === "result") && selectedApp) content = <ApplicationDetails app={selectedApp} resultOnly={view === "result"} back={() => go("applications")} profile={profile} scholarships={scholarships} onApply={applyToSch} go={go} />;
@@ -1015,23 +1052,27 @@ function ApplicationForm({
       );
 
       if (form.saveToProfile) {
-        await api.saveProfile({
-          id: profile.id,
-          full_name: fullName,
-          student_id: form.studentId.trim(),
-          phone: form.phone,
-          college: form.college.trim(),
-          course: resolvedDegree,
-          course_stream: resolvedBranch,
-          study_level: form.level,
-          year_of_study: Number(form.year),
-          academic_percentage: +form.academic,
-          family_income: +form.income,
-          category: form.category,
-          gender: form.gender || null,
-          email: profile.email,
-          use_gender_for_matching: profile.use_gender_for_matching,
-        });
+        try {
+          await api.saveProfile({
+            id: profile.id,
+            full_name: fullName,
+            student_id: form.studentId.trim(),
+            phone: form.phone,
+            college: form.college.trim(),
+            course: resolvedDegree,
+            course_stream: resolvedBranch,
+            study_level: form.level,
+            year_of_study: Number(form.year),
+            academic_percentage: +form.academic,
+            family_income: +form.income,
+            category: form.category,
+            gender: form.gender || null,
+            email: profile.email,
+            use_gender_for_matching: profile.use_gender_for_matching,
+          });
+        } catch (profileErr) {
+          toast.warning(`Application ${id} submitted, but your profile sync failed: ${(profileErr as Error).message}`);
+        }
       }
 
       toast.success(`Application ${id} submitted`);
@@ -1788,50 +1829,56 @@ function ProfilePage({
 }) {
   const [editing, setEditing] = useState(false);
 
-  // Split profile.full_name into First & Last name
-  const [initFirst, ...restLast] = (profile.full_name || "").trim().split(/\s+/);
-  const initLast = restLast.join(" ");
-
-  // Prefill degree & branch
-  const initDegree = profile.course
-    ? (DEGREE_OPTIONS as readonly string[]).includes(profile.course)
-      ? profile.course
-      : "Other"
-    : "";
-  const initCustomDegree =
-    profile.course && !(DEGREE_OPTIONS as readonly string[]).includes(profile.course)
-      ? profile.course
+  const buildFormFromProfile = useCallback(() => {
+    const [pFirst = "", ...pRestLast] = (profile.full_name || "").trim().split(/\s+/);
+    const pLast = pRestLast.join(" ");
+    const pDegree = profile.course
+      ? (DEGREE_OPTIONS as readonly string[]).includes(profile.course)
+        ? profile.course
+        : "Other"
       : "";
-
-  const initBranch = profile.course_stream
-    ? (BRANCH_OPTIONS as readonly string[]).includes(profile.course_stream)
-      ? profile.course_stream
-      : "Other"
-    : "";
-  const initCustomBranch =
-    profile.course_stream && !(BRANCH_OPTIONS as readonly string[]).includes(profile.course_stream)
-      ? profile.course_stream
+    const pCustomDegree =
+      profile.course && !(DEGREE_OPTIONS as readonly string[]).includes(profile.course)
+        ? profile.course
+        : "";
+    const pBranch = profile.course_stream
+      ? (BRANCH_OPTIONS as readonly string[]).includes(profile.course_stream)
+        ? profile.course_stream
+        : "Other"
       : "";
+    const pCustomBranch =
+      profile.course_stream && !(BRANCH_OPTIONS as readonly string[]).includes(profile.course_stream)
+        ? profile.course_stream
+        : "";
+    return {
+      firstName: pFirst,
+      lastName: pLast,
+      student_id: profile.student_id ?? "",
+      phone: profile.phone ?? "",
+      college: profile.college ?? "",
+      department: profile.department ?? "",
+      degree: pDegree,
+      customDegree: pCustomDegree,
+      branch: pBranch,
+      customBranch: pCustomBranch,
+      study_level: profile.study_level ?? "",
+      year: profile.year_of_study?.toString() ?? "",
+      gender: profile.gender ?? "",
+      use: profile.use_gender_for_matching,
+      pct: profile.academic_percentage?.toString() ?? "",
+      income: profile.family_income?.toString() ?? "",
+      category: profile.category ?? "",
+    };
+  }, [profile]);
 
-  const [f, setF] = useState({
-    firstName: initFirst || "",
-    lastName: initLast || "",
-    student_id: profile.student_id ?? "",
-    phone: profile.phone ?? "",
-    college: profile.college ?? "",
-    department: profile.department ?? "",
-    degree: initDegree,
-    customDegree: initCustomDegree,
-    branch: initBranch,
-    customBranch: initCustomBranch,
-    study_level: profile.study_level ?? "",
-    year: profile.year_of_study?.toString() ?? "",
-    gender: profile.gender ?? "",
-    use: profile.use_gender_for_matching,
-    pct: profile.academic_percentage?.toString() ?? "",
-    income: profile.family_income?.toString() ?? "",
-    category: profile.category ?? "",
-  });
+  const [f, setF] = useState(buildFormFromProfile);
+
+  useEffect(() => {
+    if (!editing) {
+      setF(buildFormFromProfile());
+      setErr("");
+    }
+  }, [editing, buildFormFromProfile]);
 
   const [err, setErr] = useState("");
   const set = (k: keyof typeof f, v: string | boolean) => setF({ ...f, [k]: v });
@@ -2052,7 +2099,14 @@ function ProfilePage({
 
           <div className="flex gap-3">
             <Button type="submit">Save Profile</Button>
-            <Button variant="outline" onClick={() => setEditing(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setF(buildFormFromProfile());
+                setErr("");
+                setEditing(false);
+              }}
+            >
               Cancel
             </Button>
           </div>
@@ -2161,11 +2215,11 @@ function ProfilePage({
 }
 
 /* ---------------- Admin ---------------- */
-type AdminProps = { view: View; go: (v: View) => void; apps: Application[]; scholarships: Scholarship[]; selected?: Application | undefined; openApp: (id: string) => void; logout: () => void; reload: () => Promise<void>; adminId: string };
-function AdminArea({ view, go, apps, scholarships, selected, openApp, logout, reload, adminId }: AdminProps) {
+type AdminProps = { view: View; go: (v: View) => void; apps: Application[]; scholarships: Scholarship[]; selected?: Application | undefined; openApp: (id: string) => void; logout: () => void; reload: () => Promise<void>; adminId: string; adminEmail: string };
+function AdminArea({ view, go, apps, scholarships, selected, openApp, logout, reload, adminId, adminEmail }: AdminProps) {
   if (view === "admin-scholarships") return <AdminScholarships scholarships={scholarships} reload={reload} />;
   if (view === "applications") return <ApplicationsList apps={apps} openApp={openApp} admin />;
-  if (view === "profile") return <div><PageTitle title="Admin Profile" subtitle="Scholarship management and review access." /><Card className="max-w-xl p-6"><div className="flex items-center gap-4"><div className="grid h-14 w-14 place-items-center rounded-xl bg-info-soft text-info"><ShieldCheck size={28} /></div><div><h2 className="font-extrabold">ScholarShield Administrator</h2><p className="text-sm text-muted-foreground">admin@scholarshield.com</p></div></div><Button variant="danger" className="mt-6" onClick={logout}><LogOut size={17} />Sign Out</Button></Card></div>;
+  if (view === "profile") return <div><PageTitle title="Admin Profile" subtitle="Scholarship management and review access." /><Card className="max-w-xl p-6"><div className="flex items-center gap-4"><div className="grid h-14 w-14 place-items-center rounded-xl bg-info-soft text-info"><ShieldCheck size={28} /></div><div><h2 className="font-extrabold">ScholarShield Administrator</h2><p className="text-sm text-muted-foreground">{adminEmail || "admin@scholarshield.com"}</p></div></div><Button variant="danger" className="mt-6" onClick={logout}><LogOut size={17} />Sign Out</Button></Card></div>;
   if (view === "details" && selected) return <ApplicationDetails app={selected} back={() => go("applications")} adminPanel={<AdminReview app={selected} reload={reload} adminId={adminId} />} />;
   const count = (s: Status[]) => apps.filter((a) => s.includes(a.status)).length;
   const stats = [
@@ -2179,13 +2233,21 @@ function AdminArea({ view, go, apps, scholarships, selected, openApp, logout, re
 }
 
 function AdminReview({ app, reload, adminId }: { app: Application; reload: () => Promise<void>; adminId: string }) {
-  const disb = getDisb(app); const [amount, setAmount] = useState(""); const [ref, setRef] = useState(""); const [payDate, setPayDate] = useState(today()); const [busy, setBusy] = useState(false);
+  const disb = getDisb(app); const [amount, setAmount] = useState(""); const [ref, setRef] = useState(""); const [payDate, setPayDate] = useState(today()); const [decisionNote, setDecisionNote] = useState(""); const [busy, setBusy] = useState(false);
   const locked = app.status === "DISBURSEMENT PENDING" || app.status === "DISBURSED";
-  async function run(label: string, fn: () => Promise<void>) {
-    if (!confirm(`${label} for ${app.id}?`)) return; setBusy(true);
-    try { await fn(); toast.success(`${label}: done`); await reload(); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  async function run(label: string, fn: () => Promise<void>, extraConfirm = "") {
+    if (!confirm(`${extraConfirm}${label} for ${app.id}?`)) return; setBusy(true);
+    try { await fn(); toast.success(`${label}: done`); setDecisionNote(""); await reload(); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   }
-  const status = (s: Status, note: string) => run(note, () => api.setStatus(app.id, s, note));
+  const status = (s: Status, fallbackNote: string) => {
+    const trimmed = decisionNote.trim();
+    const note = trimmed || fallbackNote;
+    const warnings: string[] = [];
+    if (s === "APPROVED" && !app.eligible) warnings.push("WARNING: Automated checks marked this application NOT ELIGIBLE.");
+    if (s === "APPROVED" && app.is_duplicate) warnings.push("WARNING: This application is flagged as a POTENTIAL DUPLICATE.");
+    const prefix = warnings.length ? `${warnings.join(" ")}\n\n` : "";
+    return run(note, () => api.setStatus(app.id, s, note), prefix);
+  };
   return <>
     <Card className="mt-5 p-5"><h2 className="text-base font-extrabold">Application Information</h2><div className="mt-5 space-y-6">
       <DetailGroup title="Student Information" items={[["Name", app.full_name], ["Student ID", app.student_id], ["Email", app.email], ["Phone", app.phone], ["Gender (private)", app.gender ?? "Not provided"]]} />
@@ -2193,8 +2255,24 @@ function AdminReview({ app, reload, adminId }: { app: Application; reload: () =>
       <DetailGroup title="Financial & Scholarship" items={[["Annual Family Income", formatMoney(app.family_income)], ["Category", app.category], ["Scholarship", app.scholarship_name]]} />
       <DetailGroup title="Duplicate Check" items={[["Result", app.is_duplicate ? "Potential Duplicate" : "Clear"]]} />
     </div></Card>
-    {!!app.application_documents?.length && <Card className="mt-5 p-5"><h2 className="text-base font-extrabold">Documents</h2><div className="mt-3 space-y-2">{app.application_documents.map((d) => <label key={d.id} className="flex items-center justify-between gap-3 rounded-lg bg-muted/60 p-3 text-sm"><span>{d.document_name} <span className="text-xs text-muted-foreground">({d.provided ? "student has it ready" : "not marked ready"})</span></span><span className="flex shrink-0 items-center gap-2 text-xs font-bold"><input type="checkbox" checked={d.verified} onChange={async (e) => { try { await api.verifyDocument(d.id, e.target.checked); await reload(); } catch (er) { toast.error((er as Error).message); } }} className="h-4 w-4 accent-primary" />Verified</span></label>)}</div></Card>}
+    {!!app.application_documents?.length && <Card className="mt-5 p-5"><h2 className="text-base font-extrabold">Documents</h2><div className="mt-3 space-y-2">{app.application_documents.map((d) => <label key={d.id} className="flex items-center justify-between gap-3 rounded-lg bg-muted/60 p-3 text-sm"><span>{d.document_name} <span className="text-xs text-muted-foreground">({d.provided ? "student has it ready" : "not marked ready"})</span></span><span className="flex shrink-0 items-center gap-2 text-xs font-bold"><input type="checkbox" disabled={busy || locked} checked={d.verified} onChange={async (e) => { setBusy(true); try { await api.verifyDocument(d.id, e.target.checked); await reload(); } catch (er) { toast.error((er as Error).message); } finally { setBusy(false); } }} className="h-4 w-4 accent-primary disabled:cursor-not-allowed disabled:opacity-50" />Verified</span></label>)}</div></Card>}
     <Card className="mt-5 p-5"><h2 className="text-base font-extrabold">Admin Actions</h2>
+      {(!app.eligible || app.is_duplicate) && !locked && (
+        <div className="mt-3 rounded-lg border border-warning bg-warning-soft/50 px-3 py-2 text-xs font-semibold text-foreground">
+          {!app.eligible && <p>Heads up: Automated eligibility rules rated this submission Not Eligible.</p>}
+          {app.is_duplicate && <p>Heads up: Duplicate fingerprint detected for this student, scholarship, and academic year.</p>}
+        </div>
+      )}
+      <div className="mt-4 max-w-xl">
+        <Field
+          label="Decision / Rejection Reason Note"
+          value={decisionNote}
+          onChange={setDecisionNote}
+          required={false}
+          disabled={busy || locked}
+          placeholder="Optional note or custom rejection reason (recorded in application history)"
+        />
+      </div>
       <div className="mt-4 flex flex-wrap gap-3"><Button disabled={busy || locked || app.status === "APPROVED"} onClick={() => status("APPROVED", "Application approved by administrator")}><Check size={17} />Approve</Button><Button variant="danger" disabled={busy || locked || app.status === "REJECTED"} onClick={() => status("REJECTED", "Application rejected by administrator")}><X size={17} />Reject</Button><Button variant="outline" disabled={busy || locked || app.status === "UNDER REVIEW"} onClick={() => status("UNDER REVIEW", "Moved to administrator review")}><Clock3 size={17} />Request Review</Button></div>
       <div className="mt-5 border-t pt-5"><p className="text-xs font-extrabold uppercase text-primary">Disbursement</p>
         {app.status === "APPROVED" && !disb && <div className="mt-3 flex flex-wrap items-end gap-3"><div className="w-48"><Field label="Amount (₹)" type="number" value={amount} onChange={setAmount} /></div><Button variant="secondary" disabled={busy || !(+amount > 0)} onClick={() => run("Start disbursement", () => api.startDisbursement(app.id, +amount, adminId))}><WalletCards size={17} />Start Disbursement</Button></div>}

@@ -212,7 +212,8 @@ export async function listSaved(userId: string): Promise<string[]> {
       scholarship_id: string;
     }[];
     return rows.map((r) => r.scholarship_id);
-  } catch {
+  } catch (err) {
+    console.warn("Unable to load saved scholarships:", err);
     return [];
   }
 }
@@ -310,18 +311,19 @@ export async function submitApplication(
   }
   const row = insertRes.data as { id: string };
   if (documents.length) {
-    check(
-      await db
-        .from("application_documents")
-        .insert(
-          documents.map((d) => ({
-            application_id: row.id,
-            document_name: d.name,
-            provided: d.provided,
-            verified: false,
-          }))
-        )
+    const docsRes = await db.from("application_documents").insert(
+      documents.map((d) => ({
+        application_id: row.id,
+        document_name: d.name,
+        provided: d.provided,
+        verified: false,
+      }))
     );
+    if (docsRes.error) {
+      throw new Error(
+        `Application ${row.id} was created, but its document checklist failed to save: ${docsRes.error.message}`
+      );
+    }
   }
   return row.id;
 }

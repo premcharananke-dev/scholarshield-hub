@@ -14,10 +14,10 @@ export function Button({ children, onClick, type = "button", variant = "primary"
   return <button type={type} aria-label={ariaLabel} onClick={onClick} disabled={disabled} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${styles[variant]} ${className}`}>{children}</button>;
 }
 
-type FieldProps = { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; error?: string | undefined; inputMode?: "numeric" | "decimal"; required?: boolean; hint?: string };
-export function Field({ label, value, onChange, type = "text", placeholder, error, inputMode, required = true, hint }: FieldProps) {
+type FieldProps = { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; error?: string | undefined; inputMode?: "numeric" | "decimal"; required?: boolean; disabled?: boolean; hint?: string | undefined };
+export function Field({ label, value, onChange, type = "text", placeholder, error, inputMode, required = true, disabled = false, hint }: FieldProps) {
   return <label className="block text-sm font-bold">{label}{!required && <span className="ml-1 font-medium text-muted-foreground">(optional)</span>}
-    <input required={required} type={type} inputMode={inputMode} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={`mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm font-medium outline-none transition focus:ring-2 focus:ring-ring ${error ? "border-danger" : ""}`} />
+    <input required={required} disabled={disabled} type={type} inputMode={inputMode} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={`mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm font-medium outline-none transition focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60 ${error ? "border-danger" : ""}`} />
     {hint && !error && <span className="mt-1 block text-xs font-medium text-muted-foreground">{hint}</span>}
     {error && <span className="mt-1 block text-xs font-medium text-danger">{error}</span>}</label>;
 }

@@ -145,7 +145,7 @@ assert(apSchemes.length >= 6, `Andhra Pradesh schemes count: ${apSchemes.length}
 const vidyaDeevena = MASTER_SCHOLARSHIPS.find((s) => s.id === "SCH-021");
 assert(!!vidyaDeevena, "Jagananna Vidya Deevena (RTF) found (SCH-021)");
 assert(
-  vidyaDeevena?.amount.includes("Tuition Fee Reimbursement") || vidyaDeevena?.amount.includes("RTF"),
+  Boolean(vidyaDeevena?.amount.includes("Tuition Fee Reimbursement") || vidyaDeevena?.amount.includes("RTF")),
   "Jagananna Vidya Deevena provides 100% Tuition Fee Reimbursement (RTF)"
 );
 
@@ -253,11 +253,11 @@ assert(
 
 // Ineligible scholarship has recommendations
 const sampleIneligible = categorizedResult.notEligible[0];
-assert(sampleIneligible.failedChecks.length > 0, "Ineligible item lists exact failed checks");
-assert(sampleIneligible.recommendations.length > 0, "Ineligible item provides alternative eligible recommendations");
-const firstRec = sampleIneligible.recommendations[0];
-const recMatch = matchScholarship(firstRec, apStudentProfile);
-assert(recMatch.verdict === "Eligible", `Alternative recommendation '${firstRec.name}' is verified eligible`);
+assert(Boolean(sampleIneligible && sampleIneligible.failedChecks.length > 0), "Ineligible item lists exact failed checks");
+assert(Boolean(sampleIneligible && sampleIneligible.recommendations.length > 0), "Ineligible item provides alternative eligible recommendations");
+const firstRec = sampleIneligible?.recommendations[0];
+const recMatch = firstRec ? matchScholarship(firstRec, apStudentProfile) : null;
+assert(recMatch?.verdict === "Eligible", `Alternative recommendation '${firstRec?.name ?? "none"}' is verified eligible`);
 
 // --------------------------------------------------------------------
 // TEST 9: VERIFICATION STATUS WORKFLOW
