@@ -2,7 +2,12 @@
 // Row-level security in the database decides what each signed-in user may see or change.
 import { supabase } from "@/integrations/supabase/client";
 import type { Application, Profile, Role, Scholarship, Status } from "./types";
-import { MASTER_SCHOLARSHIPS, computeApplicationStatus, computeVerificationStatus } from "@/data/scholarships";
+import {
+  MASTER_SCHOLARSHIPS,
+  computeApplicationStatus,
+  computeVerificationStatus,
+  enrichScholarship,
+} from "@/data/scholarships";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const db = supabase as any;
@@ -103,7 +108,8 @@ export async function listScholarships(): Promise<Scholarship[]> {
     if (base) matchedMasterIds.add(base.id);
 
     const eligibleCourses = base?.eligible_courses ?? row.eligible_courses;
-    const merged: Scholarship = {
+    const merged: Scholarship = enrichScholarship({
+      ...base,
       ...row,
       eligible_states: base?.eligible_states ?? row.eligible_states ?? ["All India"],
       ...(eligibleCourses ? { eligible_courses: eligibleCourses } : {}),
@@ -115,7 +121,7 @@ export async function listScholarships(): Promise<Scholarship[]> {
       verification_status: computeVerificationStatus(row),
       last_verified_date: base?.last_verified_date ?? row.updated_at?.slice(0, 10) ?? null,
       in_database: true,
-    };
+    });
     map.set(row.id, merged);
   }
 
@@ -123,12 +129,12 @@ export async function listScholarships(): Promise<Scholarship[]> {
   // explicitly marking `in_database: false` so UI/submission flows never emit invalid foreign-key writes.
   for (const m of MASTER_SCHOLARSHIPS) {
     if (matchedMasterIds.has(m.id) || map.has(m.id)) continue;
-    map.set(m.id, {
+    map.set(m.id, enrichScholarship({
       ...m,
       in_database: false,
       application_status: computeApplicationStatus(m),
       verification_status: computeVerificationStatus(m),
-    });
+    }));
   }
 
   return Array.from(map.values()).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
@@ -245,14 +251,56 @@ export async function listApplications(): Promise<Application[]> {
       .order("submitted_at", { ascending: false })
       .order("id", { ascending: false })
   ) as Application[];
-  return rows.map((a) => ({
-    ...a,
-    academic_percentage: Number(a.academic_percentage),
-    attendance: Number(a.attendance),
-    family_income: Number(a.family_income),
-    application_history: [...(a.application_history ?? [])].sort((x, y) => x.created_at.localeCompare(y.created_at)),
-  }));
+  return rows.map((a) => {
+    let mode: "INTERNAL" | "OFFICIAL_PORTAL" = "INTERNAL";
+    let extRef: string | null = null;
+    if (a.status_note && a.status_note.includes("[Official Portal:")) {
+      mode = "OFFICIAL_PORTAL";
+      const match = a.status_note.match(/\[Official Portal:\s*([^\]]+)\]/);
+      if (match && match[1]) extRef = match[1].trim();
+    }
+    return {
+      ...a,
+      academic_percentage: Number(a.academic_percentage),
+      attendance: Number(a.attendance),
+      family_income: Number(a.family_income),
+      application_mode: a.application_mode ?? mode,
+      external_reference_number: a.external_reference_number ?? extRef,
+      submission_method: (a.application_mode ?? mode) === "OFFICIAL_PORTAL" ? "Official Portal" : "Direct Tracking",
+      application_history: [...(a.application_history ?? [])].sort((x, y) => x.created_at.localeCompare(y.created_at)),
+    };
+  });
 }
+
+const DB_APPLICATION_COLUMNS = [
+  "id",
+  "user_id",
+  "scholarship_id",
+  "scholarship_name",
+  "full_name",
+  "student_id",
+  "email",
+  "phone",
+  "college",
+  "course",
+  "course_stream",
+  "study_level",
+  "department",
+  "year_of_study",
+  "academic_year",
+  "academic_percentage",
+  "attendance",
+  "family_income",
+  "category",
+  "gender",
+  "status",
+  "status_note",
+  "eligible",
+  "rules",
+  "fingerprint",
+  "is_duplicate",
+  "is_demo",
+];
 
 async function resolveDatabaseScholarship(
   scholarshipId: string,
@@ -292,14 +340,26 @@ export async function submitApplication(
     typeof app["scholarship_name"] === "string" ? app["scholarship_name"] : ""
   );
 
-  const safePayload = {
-    ...app,
-    scholarship_id: dbScholarship.id,
-    scholarship_name: dbScholarship.name,
-    is_demo: false,
-  };
+  const rawNote = String(app["status_note"] || "");
+  const extRef = app["external_reference_number"] ? String(app["external_reference_number"]).trim() : "";
+  const isExternal = app["application_mode"] === "OFFICIAL_PORTAL" || !!extRef;
+  const statusNote = isExternal && extRef
+    ? `[Official Portal: ${extRef}] ${rawNote || "Application submitted on official portal and tracked in ScholarShield"}`
+    : rawNote;
 
-  const insertRes = await db.from("applications").insert(safePayload).select("id").single();
+  const dbPayload: Record<string, unknown> = {};
+  for (const col of DB_APPLICATION_COLUMNS) {
+    if (col === "status_note") {
+      dbPayload[col] = statusNote;
+    } else if (col in app) {
+      dbPayload[col] = app[col];
+    }
+  }
+  dbPayload["scholarship_id"] = dbScholarship.id;
+  dbPayload["scholarship_name"] = dbScholarship.name;
+  dbPayload["is_demo"] = false;
+
+  const insertRes = await db.from("applications").insert(dbPayload).select("id").single();
   if (insertRes.error) {
     const msg = insertRes.error.message ?? "Failed to submit application.";
     if (msg.includes("applications_category_check")) {

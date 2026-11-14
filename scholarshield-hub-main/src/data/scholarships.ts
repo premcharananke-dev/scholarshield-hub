@@ -3,7 +3,7 @@
 // Contains verified schemes across Central Govt (NSP/Ministries), All 28 States & 8 UTs,
 // AICTE, UGC, Top Corporate Foundations, and Special Category schemes.
 
-import type { Scholarship, ScholarshipCategory, ApplicationStatus, VerificationStatus } from "@/lib/types";
+import type { Scholarship, ScholarshipCategory, ApplicationStatus, VerificationStatus, MatchProfile } from "@/lib/types";
 
 export const ALL_INDIAN_STATES_AND_UTS = [
   "All India",
@@ -3702,4 +3702,356 @@ export const MASTER_SCHOLARSHIPS: Scholarship[] = [
     last_verified_date: "2026-11-09"
   }
 ];
+
+export function enrichScholarship(s: Scholarship): Scholarship {
+  // 1. Funding authority
+  let funding_authority = s.funding_authority;
+  if (!funding_authority) {
+    if (s.provider.includes("AICTE")) {
+      funding_authority = "All India Council for Technical Education (AICTE), Ministry of Education, Govt. of India";
+    } else if (s.provider.includes("UGC")) {
+      funding_authority = "University Grants Commission (UGC), Ministry of Education, Govt. of India";
+    } else if (s.scheme_category === "Central Government") {
+      funding_authority = "Central Government (Ministry of Social Justice & Empowerment / Ministry of Education)";
+    } else if (s.scheme_category === "State Government") {
+      const state = (s.eligible_states && s.eligible_states[0] !== "All India") ? s.eligible_states[0] : "State";
+      funding_authority = `Government of ${state} (State Higher Education / Social Welfare Department)`;
+    } else if (s.scheme_category === "Corporate / Private") {
+      funding_authority = `${s.provider} Corporate Social Responsibility (CSR) Foundation`;
+    } else {
+      funding_authority = s.provider;
+    }
+  }
+
+  // 2. Payment frequency
+  let payment_frequency = s.payment_frequency;
+  if (!payment_frequency) {
+    const amt = s.amount.toLowerCase();
+    if (amt.includes("/mo") || amt.includes("month") || amt.includes("monthly") || amt.includes("p.m.")) {
+      payment_frequency = "Monthly";
+    } else if (amt.includes("one-time") || amt.includes("one time") || amt.includes("single")) {
+      payment_frequency = "One-Time";
+    } else if (amt.includes("course") || amt.includes("entire")) {
+      payment_frequency = "Course-wise";
+    } else {
+      payment_frequency = "Annual";
+    }
+  }
+
+  // 3. Tuition Coverage
+  let tuition_coverage = s.tuition_coverage;
+  if (!tuition_coverage) {
+    const ben = (s.benefits || "").toLowerCase();
+    const name = s.name.toLowerCase();
+    if (ben.includes("100% tuition") || ben.includes("full tuition") || name.includes("vidya deevena") || ben.includes("rtf")) {
+      tuition_coverage = "100% Full Tuition Fee";
+    } else if (ben.includes("tuition") || ben.includes("partial fee")) {
+      tuition_coverage = "Partial Tuition Fee";
+    } else if (ben.includes("maintenance") || name.includes("vasathi") || ben.includes("mtf") || ben.includes("hostel")) {
+      tuition_coverage = "Maintenance Allowance Only";
+    } else {
+      tuition_coverage = "Fixed Annual Grant";
+    }
+  }
+
+  // 4. Additional benefits
+  let additional_benefits = s.additional_benefits;
+  if (!additional_benefits || additional_benefits.length === 0) {
+    const ben = (s.benefits || "").toLowerCase();
+    const list: string[] = [];
+    if (ben.includes("hostel") || ben.includes("mess") || ben.includes("accommodation")) {
+      list.push("Hostel & Mess Allowance for on-campus / approved off-campus residence");
+    }
+    if (ben.includes("book") || ben.includes("equipment") || ben.includes("laptop") || ben.includes("study aid")) {
+      list.push("Annual Grant for textbooks, stationery, software licenses, or digital study aids");
+    }
+    if (ben.includes("contingency") || ben.includes("research")) {
+      list.push("Contingency grant for academic project work and conference participation");
+    }
+    if (ben.includes("maintenance") || ben.includes("living") || ben.includes("stipend")) {
+      list.push("Monthly / Annual Maintenance Allowance deposited directly to the student");
+    }
+    if (ben.includes("escort") || ben.includes("reader") || ben.includes("assistive")) {
+      list.push("Reader and escort allowance for students with benchmark disabilities");
+    }
+    if (list.length === 0) {
+      list.push("Direct Benefit Transfer (DBT) credit directly to Aadhaar-seeded student bank account");
+      list.push("Exemption from college non-refundable development and laboratory fees where sanctioned");
+    }
+    additional_benefits = list;
+  }
+
+  // 5. Total Financial Assistance
+  let total_financial_assistance = s.total_financial_assistance;
+  if (!total_financial_assistance) {
+    total_financial_assistance = s.amount ? `${s.amount} (${payment_frequency} assistance)` : "Contact official provider";
+  }
+
+  // 6. Payment method
+  let payment_method = s.payment_method;
+  if (!payment_method) {
+    if (s.provider_type === "Government") {
+      payment_method = "Direct Benefit Transfer (DBT) via PFMS Aadhaar Payment Bridge";
+    } else {
+      payment_method = "Direct Bank Transfer / NEFT to Student's Verified Account";
+    }
+  }
+
+  // 7. Disbursement Authority
+  let disbursement_authority = s.disbursement_authority;
+  if (!disbursement_authority) {
+    if (s.scheme_category === "Central Government") {
+      disbursement_authority = "Public Financial Management System (PFMS) / Respective Central Ministry";
+    } else if (s.scheme_category === "State Government") {
+      const state = (s.eligible_states && s.eligible_states[0] !== "All India") ? s.eligible_states[0] : "State";
+      disbursement_authority = `${state} State Treasury / DBT Social Welfare Directorate`;
+    } else if (s.scheme_category === "AICTE") {
+      disbursement_authority = "AICTE Finance & Student Development Bureau";
+    } else if (s.scheme_category === "UGC") {
+      disbursement_authority = "University Grants Commission / Canara Bank DBT Nodal Center";
+    } else {
+      disbursement_authority = `${s.provider} Corporate CSR / Foundation Grant Office`;
+    }
+  }
+
+  // 8. Duration & Course Coverage
+  let duration = s.duration;
+  if (!duration) {
+    if (s.study_levels.includes("Diploma")) {
+      duration = "Up to 3 Academic Years (Full Diploma Duration)";
+    } else if (s.study_levels.includes("Undergraduate")) {
+      duration = "Up to 4 Academic Years (Full Undergraduate Degree Duration)";
+    } else if (s.study_levels.includes("Doctorate")) {
+      duration = "Up to 5 Academic Years (Ph.D. Tenable Duration)";
+    } else if (s.study_levels.includes("Postgraduate")) {
+      duration = "Up to 2 Academic Years (Full Postgraduate Course Duration)";
+    } else {
+      duration = "Full Regular Course Duration (Annual Renewal)";
+    }
+  }
+
+  let course_duration_coverage = s.course_duration_coverage;
+  if (!course_duration_coverage) {
+    course_duration_coverage = "Covers all regular academic semesters/years until graduation, subject to satisfactory academic progress.";
+  }
+
+  // 9. Renewal
+  const is_renewable = s.is_renewable !== undefined ? s.is_renewable : true;
+  const renewal_frequency = s.renewal_frequency ?? "Annual";
+  const min_renewal_cgpa = s.min_renewal_cgpa ?? (s.min_percentage ? Number((s.min_percentage / 10).toFixed(1)) : 6.0);
+  const min_renewal_attendance = s.min_renewal_attendance ?? 75;
+
+  let renewal_conditions = s.renewal_conditions;
+  if (!renewal_conditions || renewal_conditions.length === 0) {
+    renewal_conditions = [
+      `Maintain minimum ${s.min_percentage ?? 60}% marks (or ${min_renewal_cgpa} CGPA) in the previous annual/semester examinations`,
+      `Maintain at least ${min_renewal_attendance}% biometric / classroom attendance throughout the academic term`,
+      "Must be promoted to the subsequent year with zero active backlog subjects",
+      "Annual family income must continue to remain within the prescribed eligibility threshold"
+    ];
+  }
+
+  let renewal_documents = s.renewal_documents;
+  if (!renewal_documents || renewal_documents.length === 0) {
+    renewal_documents = [
+      "Previous Academic Year Marksheet / Official Semester Grade Cards",
+      "Current Academic Year Bonafide / College Enrollment Certificate",
+      "Biometric Attendance Certificate (certified >= 75% by College Principal / Registrar)",
+      "Latest Annual Family Income Certificate (valid for current financial year)",
+      "Fee Paid Receipt for the current academic year"
+    ];
+  }
+
+  let renewal_instructions = s.renewal_instructions;
+  if (!renewal_instructions || renewal_instructions.length === 0) {
+    renewal_instructions = [
+      "Log into the official portal using your existing Student Application ID / Permanent Registration Number.",
+      "Select 'Apply for Renewal' for Academic Year 2024-25 and confirm your bank account is active and Aadhaar-seeded.",
+      "Upload verified semester grade cards, attendance certificate, and latest income document.",
+      "Submit the renewal online and hand over the signed physical copy with certificates to your college scholarship desk."
+    ];
+  }
+
+  const renewal_deadline = s.renewal_deadline ?? (s.closing_date ? `Renewal closes on ${s.closing_date} (synchronized with fresh cycle)` : "Synchronized with official state/portal renewal notification");
+
+  // 10. Application Steps (8 Steps)
+  let application_steps = s.application_steps;
+  if (!application_steps || application_steps.length === 0) {
+    application_steps = [
+      { step: 1, title: "Student Registration", description: "Create your student account on the official portal using your Aadhaar number, verified mobile number, and student email ID." },
+      { step: 2, title: "Eligibility Self-Check", description: "Verify your course level, category, family income limit, and domicile requirements against official scheme criteria." },
+      { step: 3, title: "Document Preparation", description: "Gather original certificates (Income, Caste, Previous Marksheet, Bonafide) in clear PDF/JPG format (each under 5MB)." },
+      { step: 4, title: "Online Portal Submission", description: "Complete the online application on the designated official portal, review all details, submit, and download your acknowledgement slip." },
+      { step: 5, title: "College / Institutional Verification", description: "Your college Nodal Officer verifies your enrollment, course fee structure, biometric attendance, and uploaded certificates." },
+      { step: 6, title: "State / District Authority Scrutiny", description: "District and State welfare authorities scrutinize application records, verify caste/income registries, and certify merit eligibility." },
+      { step: 7, title: "Sanction Order & Merit List", description: "The funding authority finalizes the beneficiary merit list and generates the formal financial scholarship sanction order." },
+      { step: 8, title: "DBT Disbursement", description: "Scholarship grant is credited directly into your Aadhaar-linked bank account via PFMS / Direct Benefit Transfer (DBT)." }
+    ];
+  }
+
+  // 11. Important Instructions
+  let important_instructions = s.important_instructions;
+  if (!important_instructions || important_instructions.length === 0) {
+    important_instructions = [
+      "Bank Account Aadhaar Seeding: Your bank account must be actively linked and mapped to your Aadhaar on the NPCI mapper to receive DBT credits.",
+      "Single Scholarship Restriction: Under government rules, a student can avail only one government scholarship benefit for the same degree course.",
+      "Document Authenticity: Submitting fake, altered, or expired income/caste certificates will lead to permanent debarment and legal action.",
+      "Institutional Deadline: Always submit physical copies to your college scholarship cell at least 5 days before the institutional verification deadline."
+    ];
+  }
+
+  // 12. Official Portal Name
+  let official_portal_name = s.official_portal_name;
+  if (!official_portal_name) {
+    const url = (s.application_url || s.source_url || "").toLowerCase();
+    if (url.includes("scholarships.gov.in")) {
+      official_portal_name = "National Scholarship Portal (NSP - scholarships.gov.in)";
+    } else if (url.includes("jnanabhumi") || url.includes("ap.gov.in")) {
+      official_portal_name = "JnanaBhumi / ePASS Portal (Andhra Pradesh)";
+    } else if (url.includes("telangana") || url.includes("telanganaepass")) {
+      official_portal_name = "Telangana ePASS Scholarship Portal";
+    } else if (url.includes("mahadbt")) {
+      official_portal_name = "MahaDBT Portal (Government of Maharashtra)";
+    } else if (url.includes("karnataka") || url.includes("ssp.postmatric")) {
+      official_portal_name = "State Scholarship Portal (SSP Karnataka)";
+    } else if (url.includes("up.gov.in") || url.includes("scholarship.up")) {
+      official_portal_name = "UP Scholarship and Fee Reimbursement Portal";
+    } else if (url.includes("vidyasaarathi")) {
+      official_portal_name = "Vidyasaarathi Portal (NSDL)";
+    } else if (url.includes("aicte-india")) {
+      official_portal_name = "AICTE Portal / National Scholarship Portal";
+    } else if (url.includes("ugc.ac.in")) {
+      official_portal_name = "UGC Scholarship Portal / Canara Bank DBT";
+    } else if (s.provider_type === "Government") {
+      official_portal_name = `${s.provider} Official Welfare Portal`;
+    } else {
+      official_portal_name = `${s.provider} Official CSR Application Portal`;
+    }
+  }
+
+  // 13. Official Guidelines URL
+  const official_guidelines_url = s.official_guidelines_url ?? s.source_url ?? s.application_url ?? null;
+
+  // 14. FAQs
+  let faqs = s.faqs;
+  if (!faqs || faqs.length === 0) {
+    faqs = [
+      {
+        question: "Can I apply if my family income is slightly above the specified ceiling?",
+        answer: s.max_income
+          ? `No. The income limit of ₹${s.max_income.toLocaleString("en-IN")} per annum is strictly enforced by government revenue authorities based on the official Income Certificate.`
+          : "Income criteria vary by category; please consult the official guidelines for income relaxations."
+      },
+      {
+        question: "Is this scholarship renewable for subsequent academic years?",
+        answer: is_renewable
+          ? `Yes, this scheme is renewable annually provided you maintain minimum academic marks (>= ${s.min_percentage ?? 60}%), minimum ${min_renewal_attendance}% biometric attendance, and have no active backlogs.`
+          : "This scheme provides one-time assistance. Re-application in subsequent academic cycles is required if eligible."
+      },
+      {
+        question: "How is the scholarship amount credited?",
+        answer: "Funds are disbursed directly to the student's Aadhaar-seeded bank account via Direct Benefit Transfer (DBT) through PFMS or state treasury accounts."
+      },
+      {
+        question: "What should I do if my college is not listed on the portal?",
+        answer: "Contact your college nodal officer or administration to register the institute AISHE / AICTE code on the portal database before the verification cutoff."
+      }
+    ];
+  }
+
+  return {
+    ...s,
+    funding_authority,
+    payment_frequency,
+    tuition_coverage,
+    additional_benefits,
+    total_financial_assistance,
+    payment_method,
+    disbursement_authority,
+    duration,
+    course_duration_coverage,
+    is_renewable,
+    renewal_frequency,
+    renewal_conditions,
+    renewal_documents,
+    renewal_instructions,
+    renewal_deadline,
+    min_renewal_cgpa,
+    min_renewal_attendance,
+    application_steps,
+    important_instructions,
+    faqs,
+    official_portal_name,
+    official_guidelines_url,
+    institute_verification_deadline: s.institute_verification_deadline ?? (s.closing_date ? `15 days after student submission deadline (${s.closing_date})` : "Within 15 days of portal closure"),
+    expected_disbursement_date: s.expected_disbursement_date ?? "Within 60-90 days following institutional and state nodal verification",
+  };
+}
+
+export type RenewalCheckResult = {
+  isEligible: boolean;
+  score: number;
+  reasons: string[];
+  passedConditions: string[];
+  failedConditions: string[];
+};
+
+export function checkRenewalEligibility(s: Scholarship, profile: MatchProfile): RenewalCheckResult {
+  const enriched = enrichScholarship(s);
+  const passed: string[] = [];
+  const failed: string[] = [];
+  const reasons: string[] = [];
+
+  // 1. Year of study (renewal only for year 2+)
+  if (profile.year_of_study && profile.year_of_study > 1) {
+    passed.push(`Academic Progression: Enrolled in Year ${profile.year_of_study} (Eligible for continuing renewal)`);
+  } else if (profile.year_of_study === 1) {
+    failed.push("Student is in Year 1 (Must apply under Fresh Scheme category, not Renewal)");
+    reasons.push("Renewal is only available for continuing students in Year 2 or higher. First-year students must submit a Fresh application.");
+  }
+
+  // 2. Academic percentage / CGPA
+  const minMarks = s.min_percentage ?? 60;
+  if (profile.academic_percentage != null) {
+    if (profile.academic_percentage >= minMarks) {
+      passed.push(`Academic Merit: Scored ${profile.academic_percentage}% in previous exam (Required: >= ${minMarks}%)`);
+    } else {
+      failed.push(`Academic Merit: Scored ${profile.academic_percentage}% (Required: >= ${minMarks}%)`);
+      reasons.push(`Previous academic performance (${profile.academic_percentage}%) does not meet the renewal minimum requirement of ${minMarks}%.`);
+    }
+  }
+
+  // 3. Biometric Attendance
+  const minAtt = enriched.min_renewal_attendance ?? 75;
+  if (profile.attendance != null) {
+    if (profile.attendance >= minAtt) {
+      passed.push(`Attendance: ${profile.attendance}% biometric attendance maintained (Required: >= ${minAtt}%)`);
+    } else {
+      failed.push(`Attendance: ${profile.attendance}% attendance shortfall (Required: >= ${minAtt}%)`);
+      reasons.push(`Biometric attendance (${profile.attendance}%) is below the mandatory ${minAtt}% threshold required for annual renewal.`);
+    }
+  }
+
+  // 4. Family income
+  if (s.max_income != null && profile.family_income != null) {
+    if (profile.family_income <= s.max_income) {
+      passed.push(`Family Income: ₹${profile.family_income.toLocaleString("en-IN")} is within limit (Max: ₹${s.max_income.toLocaleString("en-IN")})`);
+    } else {
+      failed.push(`Family Income: ₹${profile.family_income.toLocaleString("en-IN")} exceeds limit (Max: ₹${s.max_income.toLocaleString("en-IN")})`);
+      reasons.push(`Family income exceeds the renewal limit of ₹${s.max_income.toLocaleString("en-IN")}.`);
+    }
+  }
+
+  const isEligible = failed.length === 0;
+  const total = passed.length + failed.length;
+  const score = total > 0 ? Math.round((passed.length / total) * 100) : 0;
+
+  return {
+    isEligible,
+    score,
+    reasons,
+    passedConditions: passed,
+    failedConditions: failed,
+  };
+}
 

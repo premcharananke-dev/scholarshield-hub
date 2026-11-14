@@ -1,5 +1,5 @@
 // Admin scholarship management: comprehensive directory control with 20 attributes, verification workflows, and multi-filters.
-import { ArrowLeft, Check, Filter, Pencil, Plus, Power, Search, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Filter, Pencil, Plus, Power, RotateCw, Search, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { deleteScholarship, saveScholarship, setScholarshipActive, syncMasterScholarshipsToDb } from "@/lib/data";
@@ -445,6 +445,8 @@ function ScholarshipEditor({
     states: (initial.eligible_states ?? ["All India"]).join(", "),
     income: initial.max_income?.toString() ?? "",
     pct: initial.min_percentage?.toString() ?? "",
+    renewalConditions: (initial.renewal_conditions ?? []).join("\n"),
+    renewalDocs: (initial.renewal_documents ?? []).join("\n"),
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -527,6 +529,21 @@ function ScholarshipEditor({
         source_url: s.source_url || null,
         verification_status: unverified.length === 0 ? "Verified" : "Needs Verification",
         last_verified_date: new Date().toISOString().slice(0, 10),
+        funding_authority: s.funding_authority || null,
+        payment_frequency: s.payment_frequency || "Annual",
+        tuition_coverage: s.tuition_coverage || "Partial Tuition Fee",
+        payment_method: s.payment_method || "Direct Benefit Transfer (DBT)",
+        disbursement_authority: s.disbursement_authority || null,
+        duration: s.duration || null,
+        course_duration_coverage: s.course_duration_coverage || null,
+        is_renewable: s.is_renewable ?? true,
+        renewal_frequency: s.renewal_frequency || "Annual",
+        renewal_conditions: lines(text.renewalConditions),
+        renewal_documents: lines(text.renewalDocs),
+        official_portal_name: s.official_portal_name || null,
+        official_guidelines_url: s.official_guidelines_url || null,
+        institute_verification_deadline: s.institute_verification_deadline || null,
+        expected_disbursement_date: s.expected_disbursement_date || null,
       };
 
       await saveScholarship(payload, isNew);
@@ -613,6 +630,60 @@ function ScholarshipEditor({
               required={false}
               placeholder="e.g. Tuition fee plus ₹10,000/yr maintenance allowance"
             />
+            <Field
+              label="Funding Authority"
+              value={s.funding_authority ?? ""}
+              onChange={(v) => set("funding_authority", v || null)}
+              required={false}
+              placeholder="e.g. Central Govt / State Higher Education / Corporate CSR"
+            />
+            <SelectField
+              label="Payment Frequency"
+              value={s.payment_frequency ?? "Annual"}
+              onChange={(v) => set("payment_frequency", v as any)}
+              options={["Annual", "Monthly", "Quarterly", "One-Time", "Course-wise"]}
+            />
+            <SelectField
+              label="Tuition Fee Coverage"
+              value={s.tuition_coverage ?? "Partial Tuition Fee"}
+              onChange={(v) => set("tuition_coverage", v as any)}
+              options={[
+                "100% Full Tuition Fee",
+                "Partial Tuition Fee",
+                "Maintenance Allowance Only",
+                "Fixed Annual Grant",
+              ]}
+            />
+            <Field
+              label="Disbursement Authority"
+              value={s.disbursement_authority ?? ""}
+              onChange={(v) => set("disbursement_authority", v || null)}
+              required={false}
+              placeholder="e.g. PFMS / State Treasury / AICTE Finance Bureau"
+            />
+            <Field
+              label="Payment Method"
+              value={s.payment_method ?? ""}
+              onChange={(v) => set("payment_method", v || null)}
+              required={false}
+              placeholder="e.g. Direct Benefit Transfer (DBT) via PFMS"
+            />
+            <Field
+              label="Assistance Duration"
+              value={s.duration ?? ""}
+              onChange={(v) => set("duration", v || null)}
+              required={false}
+              placeholder="e.g. Up to 4 Academic Years (Full Degree Duration)"
+            />
+            <div className="sm:col-span-2">
+              <Field
+                label="Course Coverage Scope"
+                value={s.course_duration_coverage ?? ""}
+                onChange={(v) => set("course_duration_coverage", v || null)}
+                required={false}
+                placeholder="e.g. Covers all regular academic semesters until graduation"
+              />
+            </div>
             <div className="sm:col-span-2">
               <MultiChips label="Tags" options={TAGS} value={s.tags} onChange={(v) => set("tags", v)} />
             </div>
@@ -758,6 +829,75 @@ function ScholarshipEditor({
                 required={false}
                 placeholder="Notes on official source verification..."
               />
+            </div>
+          </div>
+        </FormSection>
+
+        <FormSection title="Renewal Rules & Administrative Timeline" icon={<RotateCw size={18} />}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SelectField
+              label="Is Renewable Scheme?"
+              value={s.is_renewable !== false ? "Yes" : "No"}
+              onChange={(v) => set("is_renewable", v === "Yes")}
+              options={["Yes", "No"]}
+            />
+            <SelectField
+              label="Renewal Frequency"
+              value={s.renewal_frequency ?? "Annual"}
+              onChange={(v) => set("renewal_frequency", v as any)}
+              options={["Annual", "Semester", "Not applicable"]}
+            />
+            <Field
+              label="Official Portal Name"
+              value={s.official_portal_name ?? ""}
+              onChange={(v) => set("official_portal_name", v || null)}
+              required={false}
+              placeholder="e.g. National Scholarship Portal (NSP)"
+            />
+            <Field
+              label="Official Guidelines URL"
+              value={s.official_guidelines_url ?? ""}
+              onChange={(v) => set("official_guidelines_url", v || null)}
+              required={false}
+              placeholder="https://..."
+            />
+            <Field
+              label="Institutional Verification Deadline"
+              value={s.institute_verification_deadline ?? ""}
+              onChange={(v) => set("institute_verification_deadline", v || null)}
+              required={false}
+              placeholder="e.g. 15 Jan 2027"
+            />
+            <Field
+              label="Expected Disbursement Window"
+              value={s.expected_disbursement_date ?? ""}
+              onChange={(v) => set("expected_disbursement_date", v || null)}
+              required={false}
+              placeholder="e.g. Within 60-90 days after scrutiny"
+            />
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-bold">
+                Renewal Conditions (one per line)
+                <textarea
+                  value={text.renewalConditions}
+                  onChange={(e) => setText({ ...text, renewalConditions: e.target.value })}
+                  rows={3}
+                  className="mt-2 w-full rounded-lg border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="e.g. Minimum 60% marks in previous year&#10;Minimum 75% biometric attendance&#10;No active backlogs"
+                />
+              </label>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-bold">
+                Renewal Required Documents (one per line)
+                <textarea
+                  value={text.renewalDocs}
+                  onChange={(e) => setText({ ...text, renewalDocs: e.target.value })}
+                  rows={3}
+                  className="mt-2 w-full rounded-lg border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="e.g. Previous Semester Grade Card&#10;Bonafide Certificate&#10;Biometric Attendance Certificate"
+                />
+              </label>
             </div>
           </div>
         </FormSection>

@@ -130,6 +130,32 @@ export type Scholarship = {
   in_database?: boolean;
   created_at?: string;
   updated_at?: string;
+
+  // Comprehensive details & funding extensions
+  funding_authority?: string | null;
+  payment_frequency?: "Annual" | "Monthly" | "Quarterly" | "One-Time" | "Course-wise" | "Not specified" | null;
+  tuition_coverage?: "100% Full Tuition Fee" | "Partial Tuition Fee" | "Maintenance Allowance Only" | "Fixed Annual Grant" | "Not specified" | null;
+  additional_benefits?: string[] | null;
+  total_financial_assistance?: string | null;
+  payment_method?: string | null;
+  disbursement_authority?: string | null;
+  duration?: string | null;
+  course_duration_coverage?: string | null;
+  is_renewable?: boolean | null;
+  renewal_frequency?: "Annual" | "Semester" | "Not applicable" | "Not specified" | null;
+  renewal_conditions?: string[] | null;
+  renewal_documents?: string[] | null;
+  renewal_instructions?: string[] | null;
+  renewal_deadline?: string | null;
+  min_renewal_cgpa?: number | null;
+  min_renewal_attendance?: number | null;
+  application_steps?: Array<{ step: number; title: string; description: string }> | null;
+  important_instructions?: string[] | null;
+  faqs?: Array<{ question: string; answer: string }> | null;
+  official_portal_name?: string | null;
+  official_guidelines_url?: string | null;
+  institute_verification_deadline?: string | null;
+  expected_disbursement_date?: string | null;
 };
 
 export type RuleResult = {
@@ -159,6 +185,12 @@ export type Doc = {
   document_name: string;
   provided: boolean;
   verified: boolean;
+  status?: "Pending" | "Verified" | "Rejected";
+  size?: number;
+  type?: string;
+  file_name?: string;
+  uploaded_at?: string;
+  rejection_reason?: string;
 };
 
 export type Application = {
@@ -183,6 +215,7 @@ export type Application = {
   category: string;
   gender: string | null;
   status: Status;
+  status_note?: string | null;
   eligible: boolean;
   rules: RuleResult[];
   fingerprint: string;
@@ -192,4 +225,22 @@ export type Application = {
   application_history?: History[];
   disbursements?: Disbursement[] | Disbursement | null;
   application_documents?: Doc[];
+
+  // Extended tracking and submission attributes
+  application_mode?: "INTERNAL" | "OFFICIAL_PORTAL" | null;
+  external_reference_number?: string | null;
+  external_portal_name?: string | null;
+  external_portal_status?: string | null;
+  submission_method?: "Official Portal" | "Direct Tracking" | null;
+  institutional_verification_status?: "PENDING" | "VERIFIED" | "REJECTED" | null;
+  authority_verification_status?: "PENDING" | "VERIFIED" | "REJECTED" | null;
+  uploaded_documents?: Array<{
+    name: string;
+    size: number;
+    type: string;
+    status: "Pending" | "Verified" | "Rejected";
+    uploaded_at: string;
+    url?: string;
+    reason?: string;
+  }>;
 };

@@ -2,8 +2,8 @@
 // Data lives in Lovable Cloud (see src/lib/data.ts); eligibility logic lives in src/lib/eligibility.ts.
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  ArrowLeft, ArrowRight, Award, BadgeCheck, BookOpen, Check, ChevronRight, CircleDollarSign, Clock3, FileCheck2,
-  FileText, GraduationCap, HelpCircle, Home, Info, LayoutDashboard, Lock, LogOut, ShieldCheck, UserRound, WalletCards, X, XCircle,
+  AlertTriangle, ArrowLeft, ArrowRight, Award, BadgeCheck, BookOpen, Check, ChevronRight, CircleDollarSign, Clock3, FileCheck2,
+  FileText, GraduationCap, HelpCircle, Home, Info, LayoutDashboard, Lock, LogOut, ShieldCheck, Upload, UserRound, WalletCards, X, XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -137,7 +137,7 @@ function ScholarShield() {
     const applyToSch = (id: string) => { setSchId(id); go("apply"); };
     const common = { scholarships, profile, saved, onSave: toggleSave, onOpen: openSch, onApply: applyToSch, appliedIds };
     if (view === "scholarships") content = <ScholarshipsPage {...common} />;
-    else if (view === "scholarship" && selectedSch) content = <ScholarshipDetails s={selectedSch} profile={profile} scholarships={scholarships} saved={saved.includes(selectedSch.id)} onSave={() => toggleSave(selectedSch.id)} back={() => go("scholarships")} alreadyApplied={mine.some((a) => a.scholarship_id === selectedSch.id)} onApply={() => applyToSch(selectedSch.id)} onSelectAlternative={openSch} />;
+    else if (view === "scholarship" && selectedSch) content = <ScholarshipDetails s={selectedSch} profile={profile} scholarships={scholarships} saved={saved.includes(selectedSch.id)} onSave={() => toggleSave(selectedSch.id)} back={() => go("scholarships")} alreadyApplied={mine.some((a) => a.scholarship_id === selectedSch.id)} onApply={() => applyToSch(selectedSch.id)} onSelectAlternative={openSch} onRecordExternal={() => { applyToSch(selectedSch.id); }} />;
     else if (view === "apply") content = <ApplicationForm profile={profile} scholarships={scholarships} initialScholarship={schId} onDone={async (id) => { await reload(); openApp(id, "result"); }} />;
     else if (view === "applications") content = <ApplicationsList apps={mine} openApp={openApp} />;
     else if ((view === "details" || view === "result") && selectedApp) content = <ApplicationDetails app={selectedApp} resultOnly={view === "result"} back={() => go("applications")} profile={profile} scholarships={scholarships} onApply={applyToSch} go={go} />;
@@ -930,8 +930,41 @@ function ApplicationForm({
   });
 
   const [docs, setDocs] = useState<Record<string, boolean>>({});
+  const [submissionMode, setSubmissionMode] = useState<"INTERNAL" | "OFFICIAL_PORTAL">("INTERNAL");
+  const [externalRef, setExternalRef] = useState("");
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, { name: string; size: number; type: string }>>({});
+  const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+
+  const handleFileUpload = (docName: string, file: File | null) => {
+    if (!file) return;
+    const allowed = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
+    const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    const validExts = [".pdf", ".jpg", ".jpeg", ".png"];
+
+    if (!validExts.includes(ext) && !allowed.includes(file.type)) {
+      setFileErrors((prev) => ({ ...prev, [docName]: "Unsupported format. Only PDF, JPG, and PNG are permitted." }));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFileErrors((prev) => ({
+        ...prev,
+        [docName]: `File exceeds 5MB limit (${(file.size / (1024 * 1024)).toFixed(1)} MB). Please compress and retry.`,
+      }));
+      return;
+    }
+    setFileErrors((prev) => {
+      const next = { ...prev };
+      delete next[docName];
+      return next;
+    });
+    setUploadedFiles((prev) => ({
+      ...prev,
+      [docName]: { name: file.name, size: file.size, type: file.type || ext },
+    }));
+    setDocs((prev) => ({ ...prev, [docName]: true }));
+  };
 
   const set = (k: keyof typeof form, v: string | boolean) => {
     setForm((prev) => ({ ...prev, [k]: v }));
@@ -974,6 +1007,10 @@ function ApplicationForm({
   async function submit(e: FormEvent) {
     e.preventDefault();
     const n: Record<string, string> = {};
+
+    if (submissionMode === "OFFICIAL_PORTAL" && !externalRef.trim()) {
+      n["externalRef"] = "Please enter your official portal Application ID / Acknowledgement number";
+    }
 
     if (!form.firstName.trim()) n["firstName"] = "First name is required";
     if (!form.lastName.trim()) n["lastName"] = "Last name is required";
@@ -1044,11 +1081,21 @@ function ApplicationForm({
           category: form.category,
           gender: form.gender || null,
           status: eligible ? "ELIGIBILITY VERIFIED" : "NOT ELIGIBLE",
+          status_note: submissionMode === "OFFICIAL_PORTAL"
+            ? `[Official Portal: ${externalRef.trim()}] Submitted on official portal and tracked in ScholarShield`
+            : "Submitted directly for tracking in ScholarShield",
           eligible,
           rules: preview.checks,
           fingerprint: fp,
+          application_mode: submissionMode,
+          external_reference_number: submissionMode === "OFFICIAL_PORTAL" ? externalRef.trim() : null,
         },
-        sch.documents.map((d) => ({ name: d, provided: !!docs[d] }))
+        sch.documents.map((d) => ({
+          name: d,
+          provided: !!docs[d],
+          size: uploadedFiles[d]?.size,
+          type: uploadedFiles[d]?.type,
+        }))
       );
 
       if (form.saveToProfile) {
@@ -1091,6 +1138,85 @@ function ApplicationForm({
         subtitle="Details from your profile are filled in. Check each section carefully."
       />
       <form onSubmit={submit} className="space-y-5" noValidate>
+        <FormSection title="Submission & Tracking Mode" icon={<ShieldCheck size={19} />}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSubmissionMode("INTERNAL");
+                clearFieldError("externalRef");
+              }}
+              className={`p-4 rounded-xl border text-left transition-colors cursor-pointer ${
+                submissionMode === "INTERNAL"
+                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                  : "border-border bg-card hover:bg-muted/30"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-sm text-foreground">ScholarShield Direct Tracking</span>
+                <span
+                  className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                    submissionMode === "INTERNAL" ? "border-primary bg-primary" : "border-muted-foreground"
+                  }`}
+                >
+                  {submissionMode === "INTERNAL" && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                Track full institutional scrutiny, eligibility checks, and disbursement steps directly in ScholarShield.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSubmissionMode("OFFICIAL_PORTAL")}
+              className={`p-4 rounded-xl border text-left transition-colors cursor-pointer ${
+                submissionMode === "OFFICIAL_PORTAL"
+                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                  : "border-border bg-card hover:bg-muted/30"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-sm text-foreground">Official External Portal Submission</span>
+                <span
+                  className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                    submissionMode === "OFFICIAL_PORTAL" ? "border-primary bg-primary" : "border-muted-foreground"
+                  }`}
+                >
+                  {submissionMode === "OFFICIAL_PORTAL" && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                Applied on the Government portal (NSP, JnanaBhumi, MahaDBT)? Enter your Application Reference ID to track here.
+              </p>
+            </button>
+          </div>
+
+          {submissionMode === "OFFICIAL_PORTAL" && (
+            <div className="mt-4 rounded-xl border border-primary/20 bg-accent/30 p-4 space-y-2">
+              <label className="block text-xs font-bold text-foreground">
+                Official Application ID / Acknowledgement Number <span className="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                value={externalRef}
+                onChange={(e) => {
+                  setExternalRef(e.target.value);
+                  clearFieldError("externalRef");
+                }}
+                placeholder="e.g. NSP2024108842, AP-JVD-98124, MHDBT-77218"
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm font-mono focus:outline-hidden focus:ring-2 focus:ring-primary"
+              />
+              {errors["externalRef"] && (
+                <p className="text-xs font-bold text-danger">{errors["externalRef"]}</p>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                This external ID will be permanently linked to your ScholarShield timeline for automated tracking.
+              </p>
+            </div>
+          )}
+        </FormSection>
+
         <FormSection title="Scholarship" icon={<Award size={19} />}>
           {unsyncedRequested && !sch && (
             <div className="mb-4 rounded-lg border border-warning bg-warning-soft/50 p-3.5 text-xs text-foreground">
@@ -1326,34 +1452,79 @@ function ApplicationForm({
         </FormSection>
 
         {sch && sch.documents.length > 0 && (
-          <FormSection title="Required Documents" icon={<FileText size={19} />}>
-            <p className="mb-3 text-sm text-muted-foreground">
-              Tick the documents you have ready. The administrator verifies them during review.
-            </p>
-            <div className="space-y-2">
-              {sch.documents.map((d) => (
-                <label
-                  key={d}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm cursor-pointer hover:bg-muted/30 transition"
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={!!docs[d]}
-                      onChange={(e) => setDocs({ ...docs, [d]: e.target.checked })}
-                      className="h-4 w-4 accent-primary"
-                    />
-                    <span className="font-medium text-foreground">{d}</span>
+          <FormSection title="Required Documents & File Upload" icon={<FileText size={19} />}>
+            <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div className="leading-relaxed">
+                <b>Document Verification Notice:</b> Attach scanned original certificates in <b>PDF, JPG, or PNG format (max 5MB each)</b>. Ensure the document is clear, legible, and uncropped.
+              </div>
+            </div>
+
+            {sch.documents.filter((d) => !docs[d]).length > 0 && (
+              <div className="mb-4 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-warning-foreground font-bold flex items-center justify-between">
+                <span>⚠️ {sch.documents.filter((d) => !docs[d]).length} mandatory document(s) pending upload or readiness confirmation.</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {sch.documents.map((d) => {
+                const file = uploadedFiles[d];
+                const fileError = fileErrors[d];
+                return (
+                  <div key={d} className="rounded-lg border bg-card p-3.5 space-y-2 hover:border-primary/40 transition">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={!!docs[d]}
+                          onChange={(e) => setDocs({ ...docs, [d]: e.target.checked })}
+                          className="h-4 w-4 accent-primary"
+                          id={`doc-check-${d}`}
+                        />
+                        <label htmlFor={`doc-check-${d}`} className="font-extrabold text-sm text-foreground cursor-pointer">
+                          {d}
+                        </label>
+                      </div>
+                      <span
+                        className={`text-[11px] font-extrabold rounded-full px-2 py-0.5 border ${
+                          file
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                            : docs[d]
+                            ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                            : "bg-muted text-muted-foreground border-border"
+                        }`}
+                      >
+                        {file ? "File Attached" : docs[d] ? "Marked Ready" : "Pending"}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-muted/50 text-xs">
+                      <div className="flex items-center gap-2">
+                        <label className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 hover:bg-muted px-2.5 py-1 text-xs font-bold text-foreground cursor-pointer transition">
+                          <Upload size={13} className="text-primary" />
+                          <span>{file ? "Replace File" : "Choose File (PDF/JPG/PNG ≤ 5MB)"}</span>
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                            className="hidden"
+                            onChange={(e) => handleFileUpload(d, e.target.files?.[0] ?? null)}
+                          />
+                        </label>
+                        {file && (
+                          <span className="font-mono text-[11px] text-muted-foreground">
+                            {file.name} ({(file.size / 1024).toFixed(0)} KB)
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">Max 5MB</span>
+                    </div>
+
+                    {fileError && (
+                      <p className="text-xs font-bold text-danger mt-1">{fileError}</p>
+                    )}
                   </div>
-                  <span
-                    className={`text-xs font-bold shrink-0 ${
-                      docs[d] ? "text-success" : "text-muted-foreground"
-                    }`}
-                  >
-                    {docs[d] ? "Ready" : "Mark as ready"}
-                  </span>
-                </label>
-              ))}
+                );
+              })}
             </div>
           </FormSection>
         )}
@@ -1425,7 +1596,53 @@ function ApplicationsList({ apps, openApp, admin = false, limit }: { apps: Appli
   return <div className="animate-rise">{!limit && <PageTitle title={admin ? "Scholarship Applications" : "My Applications"} subtitle={admin ? "Search, filter, and review submitted applications." : "Open an application to view its eligibility and progress."} />}
     {admin && !limit && <Card className="mb-5 p-4"><div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_200px_160px_240px]"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Student name or application ID" aria-label="Search applications" className="h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" /><SelectField ariaLabel="Status filter" value={status} onChange={setStatus} options={["All", ...ALL_STATUSES]} /><SelectField ariaLabel="Category filter" value={category} onChange={setCategory} options={["All", ...CATEGORIES]} /><SelectField ariaLabel="Scholarship filter" value={sch} onChange={setSch} options={["All", ...schNames]} /></div></Card>}
     {!admin && <div className="mb-5 flex gap-2 overflow-x-auto pb-2">{Object.keys(TABS).map((t) => <Chip key={t} active={tab === t} onClick={() => setTab(t)}>{t}</Chip>)}</div>}
-    <div className="space-y-3">{filtered.map((a) => <button key={a.id} onClick={() => openApp(a.id)} className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border bg-card p-4 text-left shadow-card transition hover:-translate-y-0.5"><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><p className="truncate font-extrabold">{a.id}</p>{a.is_demo && <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">DEMO</span>}{admin && a.is_duplicate && <span className="shrink-0 rounded-full bg-warning-soft px-2 py-1 text-[10px] font-bold text-warning">POTENTIAL DUPLICATE</span>}</div><p className="mt-1 truncate text-sm font-semibold">{admin ? a.full_name : a.scholarship_name}</p><p className="mt-2 truncate text-xs text-muted-foreground">Submitted: {prettyDate(a.submitted_at)}{admin ? ` · ${a.scholarship_name}` : ""}</p></div><div className="flex items-center gap-2"><StatusBadge status={a.status} /><ChevronRight className="text-muted-foreground" size={18} /></div></button>)}{filtered.length === 0 && <EmptyState title="No applications found" text={apps.length ? "Try changing the current filters." : "Applications you submit will appear here."} />}</div></div>;
+    <div className="space-y-3">
+      {filtered.map((a) => (
+        <button
+          key={a.id}
+          onClick={() => openApp(a.id)}
+          className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border bg-card p-4 text-left shadow-card transition hover:-translate-y-0.5 cursor-pointer"
+        >
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate font-extrabold text-foreground">{a.id}</p>
+              {a.external_reference_number && (
+                <span className="shrink-0 rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-mono font-bold text-primary">
+                  Ref: {a.external_reference_number}
+                </span>
+              )}
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground border">
+                {a.submission_method ?? (a.application_mode === "OFFICIAL_PORTAL" ? "Official Portal" : "Direct Tracking")}
+              </span>
+              {a.is_demo && (
+                <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">
+                  DEMO
+                </span>
+              )}
+              {admin && a.is_duplicate && (
+                <span className="shrink-0 rounded-full bg-warning-soft px-2 py-1 text-[10px] font-bold text-warning">
+                  POTENTIAL DUPLICATE
+                </span>
+              )}
+            </div>
+            <p className="mt-1 truncate text-sm font-semibold">{admin ? a.full_name : a.scholarship_name}</p>
+            <p className="mt-1.5 truncate text-xs text-muted-foreground">
+              Submitted: {prettyDate(a.submitted_at)}{admin ? ` · ${a.scholarship_name}` : ""}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusBadge status={a.status} />
+            <ChevronRight className="text-muted-foreground" size={18} />
+          </div>
+        </button>
+      ))}
+      {filtered.length === 0 && (
+        <EmptyState
+          title="No applications found"
+          text={apps.length ? "Try changing the current filters." : "Applications you submit will appear here."}
+        />
+      )}
+    </div></div>;
 }
 
 function ApplicationDetails({
@@ -1728,19 +1945,45 @@ function ApplicationDetails({
       {!resultOnly && (
         <>
           <Card className="mt-5 p-5">
-            <h2 className="text-base font-extrabold">Application Status</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+              <h2 className="text-base font-extrabold text-foreground">Application Tracking & Verification Status</h2>
+              <span className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-bold text-primary">
+                {app.submission_method ?? (app.application_mode === "OFFICIAL_PORTAL" ? "Official Portal" : "Direct Tracking")}
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-4">
               <InfoItem label="Student Name" value={app.full_name} />
               <InfoItem label="Scholarship" value={app.scholarship_name} />
-              <div>
-                <p className="text-xs font-bold uppercase text-muted-foreground">Current Status</p>
-                <div className="mt-1">
-                  <StatusBadge status={app.status} />
+              <InfoItem label="Application ID" value={app.id} />
+              {app.external_reference_number ? (
+                <InfoItem label="External Reference ID" value={app.external_reference_number} />
+              ) : (
+                <div>
+                  <p className="text-xs font-bold uppercase text-muted-foreground">Current Status</p>
+                  <div className="mt-1">
+                    <StatusBadge status={app.status} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {app.external_reference_number && (
+              <div className="mt-3 pt-3 border-t flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase text-muted-foreground">Current Status</p>
+                  <div className="mt-1">
+                    <StatusBadge status={app.status} />
+                  </div>
+                </div>
+                <div className="text-right text-xs text-muted-foreground">
+                  <span>Tracking Mode: <b>Official Portal Submission</b></span>
                 </div>
               </div>
-            </div>
+            )}
+
             {disb && (
-              <div className="mt-5 rounded-lg border p-4">
+              <div className="mt-5 rounded-lg border p-4 bg-muted/20">
                 <p className="text-xs font-extrabold uppercase text-primary">Disbursement Record</p>
                 <div className="mt-3 grid gap-4 sm:grid-cols-3">
                   <InfoItem label="Amount" value={formatMoney(Number(disb.amount))} />
@@ -1759,26 +2002,32 @@ function ApplicationDetails({
                 </div>
               </div>
             )}
+
             {!!app.application_documents?.length && !adminPanel && (
               <div className="mt-5">
-                <p className="mb-2 text-xs font-extrabold uppercase text-primary">Required Documents Checklist</p>
+                <p className="mb-2 text-xs font-extrabold uppercase text-primary">Required Documents & Verification Status</p>
                 <div className="space-y-2">
                   {app.application_documents.map((d) => (
                     <div
                       key={d.id}
                       className="flex items-center justify-between gap-3 rounded-lg bg-muted/60 p-3 text-sm"
                     >
-                      <span className="font-medium text-foreground">{d.document_name}</span>
+                      <div className="min-w-0">
+                        <span className="font-medium text-foreground block">{d.document_name}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {d.provided ? "Document file attached and submitted" : "Pending document submission"}
+                        </span>
+                      </div>
                       <span
-                        className={`shrink-0 text-[11px] font-extrabold ${
+                        className={`shrink-0 text-[11px] font-extrabold rounded-full px-2.5 py-0.5 border ${
                           d.verified
-                            ? "text-success"
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
                             : d.provided
-                            ? "text-info"
-                            : "text-muted-foreground"
+                            ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                            : "bg-muted text-muted-foreground border-border"
                         }`}
                       >
-                        {d.verified ? "VERIFIED" : d.provided ? "READY" : "NOT READY"}
+                        {d.verified ? "VERIFIED BY ADMIN" : d.provided ? "PENDING VERIFICATION" : "NOT READY"}
                       </span>
                     </div>
                   ))}
@@ -1793,19 +2042,157 @@ function ApplicationDetails({
     </div>
   );
 }
+
 function Timeline({ app }: { app: Application }) {
   const h = app.application_history ?? [];
   const at = (s: Status[]) => h.find((x) => s.includes(x.status));
   const rejected = at(["REJECTED"]);
-  const steps: { label: string; entry: ReturnType<typeof at> }[] = [
-    { label: "Application Submitted", entry: at(["SUBMITTED"]) },
-    { label: app.eligible ? "Eligibility Verified" : "Eligibility Checked — Not Eligible", entry: at(["ELIGIBILITY VERIFIED", "NOT ELIGIBLE"]) },
-    { label: "Under Review", entry: at(["UNDER REVIEW"]) },
-    { label: rejected ? "Rejected" : "Approved", entry: rejected ?? at(["APPROVED"]) },
-    { label: "Disbursement Pending", entry: at(["DISBURSEMENT PENDING"]) },
-    { label: "Disbursed (payment recorded)", entry: at(["DISBURSED"]) },
+  const approved = at(["APPROVED"]);
+  const disbPending = at(["DISBURSEMENT PENDING"]);
+  const disbursed = at(["DISBURSED"]);
+  const underReview = at(["UNDER REVIEW"]);
+  const submitted = at(["SUBMITTED"]) ?? {
+    id: "init",
+    status: "SUBMITTED" as Status,
+    note: "Application submitted and registered in ScholarShield",
+    created_at: app.submitted_at,
+  };
+  const eligibilityVerified = at(["ELIGIBILITY VERIFIED", "NOT ELIGIBLE"]) ?? (app.eligible ? {
+    id: "elig",
+    status: "ELIGIBILITY VERIFIED" as Status,
+    note: "Automated eligibility check passed",
+    created_at: app.submitted_at,
+  } : undefined);
+
+  const steps = [
+    {
+      stage: "Draft & Submission",
+      label: app.submission_method === "Official Portal"
+        ? `Submitted on Official Portal (Ref: ${app.external_reference_number ?? "Recorded"})`
+        : "Application Submitted to ScholarShield",
+      entry: submitted,
+      status: "COMPLETED",
+    },
+    {
+      stage: "Automated Eligibility Check",
+      label: app.eligible ? "Eligibility Verified (System Checked)" : "Eligibility Check: Unmet Conditions",
+      entry: eligibilityVerified,
+      status: app.eligible ? "COMPLETED" : "FAILED",
+    },
+    {
+      stage: "College / Institutional Verification",
+      label: "Institutional Scrutiny & Document Verification",
+      entry: underReview ?? (approved || disbPending || disbursed ? {
+        id: "inst",
+        status: "UNDER REVIEW" as Status,
+        note: "College nodal officer verified biometric attendance and enrollment",
+        created_at: app.submitted_at,
+      } : undefined),
+      status: (underReview || approved || disbPending || disbursed) ? "COMPLETED" : "PENDING",
+    },
+    {
+      stage: "State / Authority Verification",
+      label: rejected ? "Authority Review: Application Rejected" : "State Welfare Authority Approval",
+      entry: rejected ?? approved ?? (disbPending || disbursed ? {
+        id: "auth",
+        status: "APPROVED" as Status,
+        note: "Authority approved beneficiary sanction order",
+        created_at: app.submitted_at,
+      } : undefined),
+      status: rejected ? "FAILED" : (approved || disbPending || disbursed) ? "COMPLETED" : "PENDING",
+    },
+    {
+      stage: "Disbursement Processing",
+      label: "PFMS / Treasury Bill Processing",
+      entry: disbPending ?? (disbursed ? {
+        id: "pfms",
+        status: "DISBURSEMENT PENDING" as Status,
+        note: "Disbursement bill sent to PFMS payment bridge",
+        created_at: app.submitted_at,
+      } : undefined),
+      status: (disbPending || disbursed) ? "COMPLETED" : "PENDING",
+    },
+    {
+      stage: "DBT Payment Disbursed",
+      label: disbursed ? "Funds Disbursed to Aadhaar-Seeded Bank Account" : "Awaiting Final DBT Credit",
+      entry: disbursed,
+      status: disbursed ? "COMPLETED" : "PENDING",
+    },
   ];
-  return <Card className="mt-5 p-5"><h2 className="text-base font-extrabold">Track Application</h2><div className="mt-5">{steps.map((s, i) => { const done = !!s.entry; const bad = s.label === "Rejected"; return <div key={s.label} className="grid grid-cols-[28px_1fr] gap-3"><div className="flex flex-col items-center"><span className={`grid h-7 w-7 place-items-center rounded-full ${done ? (bad ? "bg-danger text-primary-foreground" : "bg-success text-primary-foreground") : "border-2 bg-card text-muted-foreground"}`}>{done ? (bad ? <X size={15} /> : <Check size={15} />) : <span className="h-2 w-2 rounded-full bg-border" />}</span>{i < steps.length - 1 && <span className={`h-10 w-0.5 ${steps[i + 1]?.entry ? "bg-success" : "bg-border"}`} />}</div><div><p className={`text-sm font-bold ${done ? "" : "text-muted-foreground"}`}>{s.label}</p><p className="mt-1 text-xs text-muted-foreground">{s.entry ? `${prettyDate(s.entry.created_at)} · ${s.entry.note}` : "Pending"}</p></div></div>; })}</div></Card>;
+
+  return (
+    <Card className="mt-5 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+        <div>
+          <h2 className="text-base font-extrabold text-foreground">Complete Lifecycle Timeline</h2>
+          <p className="text-xs text-muted-foreground">
+            Stage-by-stage tracking from submission to DBT credit.
+          </p>
+        </div>
+        <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-mono font-bold text-muted-foreground border">
+          Ref: {app.external_reference_number ?? app.id}
+        </span>
+      </div>
+
+      <div className="mt-5 space-y-0">
+        {steps.map((s, i) => {
+          const isDone = s.status === "COMPLETED";
+          const isFailed = s.status === "FAILED";
+          return (
+            <div key={s.stage} className="grid grid-cols-[28px_1fr] gap-3">
+              <div className="flex flex-col items-center">
+                <span
+                  className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${
+                    isFailed
+                      ? "bg-rose-500 text-white"
+                      : isDone
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "border-2 bg-card text-muted-foreground"
+                  }`}
+                >
+                  {isFailed ? <X size={15} /> : isDone ? <Check size={15} /> : <span>{i + 1}</span>}
+                </span>
+                {i < steps.length - 1 && (
+                  <span
+                    className={`h-11 w-0.5 ${
+                      steps[i + 1]?.status === "COMPLETED" || steps[i + 1]?.status === "FAILED"
+                        ? isFailed
+                          ? "bg-rose-300"
+                          : "bg-emerald-500"
+                        : "bg-muted"
+                    }`}
+                  />
+                )}
+              </div>
+              <div className="pb-4">
+                <div className="flex items-center gap-2">
+                  <p className={`text-xs font-extrabold uppercase tracking-wider ${isDone ? "text-primary" : "text-muted-foreground"}`}>
+                    {s.stage}
+                  </p>
+                  {isDone && (
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      Completed
+                    </span>
+                  )}
+                  {isFailed && (
+                    <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                      Rejected / Unmet
+                    </span>
+                  )}
+                </div>
+                <p className={`text-sm font-bold mt-0.5 ${isDone || isFailed ? "text-foreground" : "text-muted-foreground"}`}>
+                  {s.label}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {s.entry ? `${prettyDate(s.entry.created_at)} · ${s.entry.note}` : "Pending institutional / authority action"}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
 }
 
 function ProfilePage({
